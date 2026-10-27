@@ -1,0 +1,664 @@
+<title>Hard Burn Core Loop</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>/* Layout: one narrow column, a header strip and a phase card above ship and crew status. Palette: night hull, amber for warnings, red for emergencies, cyan for data. */
+:root{--bg:#0b1017;--panel:#121a24;--panel2:#18232f;--line:#263648;--fg:#dbe3ec;--mut:#8b9aad;--amber:#e7a43a;--red:#e2564d;--cyan:#46c2d8;--green:#5ec27d;--ink:#0b1017;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 'IBM Plex Sans',system-ui,sans-serif;padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));padding-block:0 28px;margin:0}
+#app{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+h2,h3,h4,.ttl,.tag,.tr{font-family:'Barlow Condensed','Arial Narrow',sans-serif;letter-spacing:.04em;text-transform:uppercase;margin:0}
+h2{font-size:28px;line-height:1.05}h3{font-size:19px;color:var(--cyan)}h4{font-size:14px;color:var(--mut);margin-top:12px}h3 small,h4 small{text-transform:none;letter-spacing:0;color:var(--mut);font-family:'IBM Plex Sans'}
+small{color:var(--mut);font-size:12px}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding:10px 0 8px;border-bottom:1px solid var(--line)}
+.t1{display:flex;align-items:baseline;gap:10px}.ttl{font-size:22px;font-weight:700;color:var(--amber)}.proto{font-size:12px;color:var(--mut)}
+.t2{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:'IBM Plex Mono',monospace;font-size:13px;margin-top:4px}.cr{color:var(--green)}.debt{color:var(--red)}.fate{color:var(--cyan)}
+.ev{margin-top:6px;padding:6px 8px;border:1px solid var(--amber);color:var(--amber);font-size:13px;border-radius:4px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.mt2{margin-top:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mt{position:relative;height:24px;background:var(--panel2);border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.mt i{position:absolute;inset:0 auto 0 0;background:#2d6f80}.mt.bad i{background:#9a3c37}.mt.warn i{background:#936b22}.mt.good i{background:#2f7a49}
+.mt b{position:relative;display:block;padding:0 8px;line-height:22px;font:500 12px 'IBM Plex Mono',monospace;white-space:nowrap}
+.res{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--mut)}.res b{color:var(--fg);font-family:'IBM Plex Mono',monospace}.good{color:var(--green)}
+.subs{display:flex;flex-wrap:wrap;gap:4px 10px;font:12px 'IBM Plex Mono',monospace;color:var(--mut);align-items:center}.subs .dmg{color:var(--amber)}.subs .out{color:var(--red);text-decoration:line-through}.subs .lab{color:var(--fg)}
+.faults{display:flex;flex-wrap:wrap;gap:6px}.fault{font-size:12px;border:1px solid var(--amber);color:var(--amber);border-radius:3px;padding:2px 6px}
+.crew{display:flex;flex-direction:column;gap:6px}.cr2{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)}.cr2 small{display:block}.cr2 .r{display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:84px}
+.pill{font-size:11px;padding:1px 7px;border-radius:10px;border:1px solid var(--line);text-transform:uppercase;letter-spacing:.05em}
+.pill.Steady{color:var(--green);border-color:#2f7a49}.pill.Strained{color:var(--amber);border-color:#936b22}.pill.Frayed{color:#f08a3a;border-color:#a8541c}.pill.Breaking{color:var(--red);border-color:var(--red)}.pill.inj1{color:var(--amber)}.pill.inj2{color:var(--red)}
+.sbar{width:84px;height:5px;background:var(--panel2);border-radius:3px;overflow:hidden}.sbar i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--amber),var(--red));background-size:84px 100%}
+.b{font:600 14px 'IBM Plex Sans';min-height:40px;padding:8px 14px;border-radius:4px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);cursor:pointer}
+.b:hover:not(:disabled){border-color:var(--cyan)}.b:disabled{opacity:.38;cursor:not-allowed}
+.b.go{background:var(--amber);border-color:var(--amber);color:var(--ink)}.b.go:hover:not(:disabled){background:#f2b552}.b.ghost{background:transparent;color:var(--mut)}.b.warnb{border-color:var(--amber);color:var(--amber)}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}.tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--mut);padding:8px 12px;font:600 14px 'IBM Plex Sans';cursor:pointer;min-height:40px}.tabs .on{color:var(--amber);border-color:var(--amber)}
+.tb{display:flex;flex-direction:column;gap:8px}
+.row,.job{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}.row>div:first-child,.job>div:first-child{flex:1;min-width:180px}.row small,.job small{display:block}.r{display:flex;gap:6px;align-items:center}.pay{font:600 16px 'IBM Plex Mono',monospace;color:var(--green)}
+.job.story{border-left:3px solid var(--amber);padding-left:8px}.job.cur{border-left:3px solid var(--cyan);padding-left:8px;flex-direction:column;align-items:flex-start}
+.crewrow{display:block}.crewrow .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.dsts,.brns{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:6px}
+.dst,.brn,.op{background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:4px;padding:8px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;font:600 14px 'IBM Plex Sans';min-height:48px}
+.dst em{font-size:11px;color:var(--amber);font-style:normal}.dst.job{border-color:var(--amber)}
+.dst.on,.brn.on,.op.on{border-color:var(--cyan);background:#13303a}.op.on{box-shadow:inset 0 0 0 1px var(--cyan)}
+.sum{display:flex;flex-wrap:wrap;gap:4px 14px;font:13px 'IBM Plex Mono',monospace}
+.note{margin:0;color:var(--mut);font-size:13px}.warn{color:var(--amber);margin:0;font-size:13px}.why{color:var(--amber);font-size:13px;margin-left:8px}
+.tag{font-size:13px;color:var(--amber)}.tag.red{color:var(--red)}.txt{margin:0}.adv{margin:0;padding:8px 10px;border-left:3px solid var(--cyan);background:#10222b;font-style:italic;border-radius:0 4px 4px 0}
+.inc,.cmb{border-color:#3a4f66}.cmb{border-color:#7a2f2a}
+.ap{border:1px solid var(--line);border-radius:5px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--panel2)}.ap.rec{border-color:#2f7a8a}.ap.lock{opacity:.6}
+.aph{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.aph b{font-size:16px}.rk,.sk{font-size:11px;padding:1px 7px;border-radius:10px;border:1px solid var(--line);color:var(--mut);text-transform:uppercase;letter-spacing:.05em}.rk.r0{color:var(--green)}.rk.r1{color:var(--amber)}.rk.r2{color:var(--red)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}.chip{background:var(--bg);border:1px solid var(--line);color:var(--fg);border-radius:14px;padding:4px 10px;font:500 13px 'IBM Plex Sans';cursor:pointer;min-height:32px}.chip.on{border-color:var(--cyan);color:var(--cyan)}
+.odds .ob{display:flex;height:12px;border-radius:3px;overflow:hidden;gap:1px}.ob i{display:block}.ob .dis{background:#6b1e1a}.ob .fai{background:#b8443d}.ob .mix{background:#c28a2c}.ob .suc{background:#3f9a5e}.ob .cri{background:#46c2d8}
+.ol{display:flex;gap:12px;font:12px 'IBM Plex Mono',monospace;margin-top:4px;flex-wrap:wrap}.ol .g{color:var(--green)}.ol .m{color:var(--amber)}.ol .bd{color:#e0766e}
+.res2{border:1px solid var(--line);border-radius:6px;padding:12px;background:var(--panel2);display:flex;flex-direction:column;gap:8px}.res2 p{margin:0}.rh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tr{font-size:26px}
+.t0 .tr,.t1 .tr{color:var(--red)}.t0{border-color:var(--red)}.t1{border-color:#8a3b36}.t2 .tr{color:var(--amber)}.t3 .tr{color:var(--green)}.t4 .tr,.t4{color:var(--cyan);}.t4{border-color:var(--cyan)}.t4 p,.t4 .eff span{color:var(--fg)}
+.dice{display:inline-flex;gap:4px}.dice i{width:26px;height:26px;border:1px solid var(--fg);border-radius:5px;display:inline-grid;place-items:center;font:600 14px 'IBM Plex Mono',monospace;font-style:normal;background:var(--bg)}.md{font-family:'IBM Plex Mono',monospace;color:var(--mut)}
+.eff{display:flex;flex-wrap:wrap;gap:6px}.eff span{font:12px 'IBM Plex Mono',monospace;padding:2px 8px;border-radius:3px;border:1px solid var(--line)}.eff .pos{color:var(--green);border-color:#2f7a49}.eff .neg{color:#e0766e;border-color:#8a3b36}
+.track{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}.band{border:1px solid var(--line);background:var(--panel2);padding:8px;text-align:center;font:600 13px 'Barlow Condensed';text-transform:uppercase;letter-spacing:.08em;color:var(--mut);position:relative}.band.cur{background:#13303a;border-color:var(--cyan);color:var(--cyan)}.band.pref::after{content:'enemy prefers';position:absolute;bottom:1px;left:0;right:0;font:10px 'IBM Plex Sans';text-transform:none;letter-spacing:0;color:var(--amber)}.band b{margin-left:4px}.band span{display:block;margin-bottom:8px}
+.orders{display:flex;flex-direction:column;gap:6px}.ops{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px}.op small{font-weight:400;font-size:11px}
+.log{display:flex;flex-direction:column;gap:3px;font-size:13px}.log p{margin:0}.log .bad{color:#e0766e}.log .good{color:var(--green)}.log .warn{color:var(--amber)}.log small{font-family:'IBM Plex Mono',monospace;margin-right:4px}.cl{background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--line)}.over{font:700 22px 'Barlow Condensed';text-transform:uppercase;color:var(--amber);margin:0}
+.sum2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 12px;font-size:13px;color:var(--mut)}.sum2 b{color:var(--fg);font-family:'IBM Plex Mono',monospace}
+.over2.win{border-color:var(--green)}.over2.lose{border-color:var(--red)}
+.help{border-color:var(--cyan)}.help p{margin:0}
+@media (max-width:480px){.grid2{grid-template-columns:1fr}h2{font-size:24px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.b.sm{min-height:32px;padding:4px 10px;font-size:12px}.inp{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:8px;font:14px 'IBM Plex Sans';resize:vertical}.fl{font-size:13px;color:var(--mut);margin-top:4px}.fb,.final{border-color:var(--amber)}.final{border-color:var(--red)}
+
+.map{width:100%;height:auto;display:block;background:var(--bg);border:1px solid var(--line);border-radius:4px}
+.zone{fill:var(--panel2);stroke:var(--line)}.zone.cur{fill:#13303a;stroke:var(--cyan)}.zpref{fill:none;stroke:var(--amber);stroke-dasharray:3 3}
+.zl{fill:var(--mut);font:600 10px 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-anchor:middle}.zp{fill:var(--amber);font:9px 'IBM Plex Sans',sans-serif;text-anchor:middle}
+.you{fill:var(--cyan);stroke:var(--bg);stroke-width:1}.foe{fill:var(--red);stroke:var(--bg);stroke-width:1}.foe2{fill:var(--bg)}.ghost{fill:none;stroke:var(--mut);stroke-dasharray:2 2}.mv{stroke:var(--mut);stroke-width:1.5;fill:none}.dl{stroke:var(--mut);stroke-dasharray:2 3}
+.nm{fill:var(--cyan);font:600 8px 'IBM Plex Sans',sans-serif;text-anchor:middle;letter-spacing:.08em}.foen{fill:var(--red)}
+.wl{fill:var(--fg);font:600 10px 'IBM Plex Sans',sans-serif}.cell{stroke:var(--line);fill:var(--panel2)}.cell.zg{fill:#1f4b30}.cell.zn{fill:#4a3a16}.cell.za{fill:#5a2b27}.cell.zr{fill:#3a1513}.cell.now{stroke:var(--fg)}.cell.sel{stroke:var(--cyan);stroke-width:2}
+.cv{fill:var(--fg);font:500 10px 'IBM Plex Mono',monospace;text-anchor:middle}
+
+.cons{border:1px solid var(--line);border-radius:5px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--panel2)}.cons h4{margin:0}.neg{color:#e0766e;font:12px 'IBM Plex Mono',monospace;border:1px solid #8a3b36;border-radius:3px;padding:2px 8px}
+
+.op:disabled{opacity:.35;cursor:not-allowed}
+</style>
+<div id="app"></div>
+<script>
+/* ===== HARD BURN core-loop engine (no DOM below this marker) ===== */
+const DOM=typeof document!=='undefined';
+let seed=(Date.now()%2147483647)|0;
+function setSeed(s){seed=s|0}
+function rnd(){seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}
+const d6=()=>1+Math.floor(rnd()*6),pick=a=>a[Math.floor(rnd()*a.length)],clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),rint=(a,b)=>a+Math.floor(rnd()*(b-a+1));
+const TIERS=['Disaster','Failure','Mixed','Success','Critical'];
+const tierOf=t=>t<=4?0:t<=6?1:t<=9?2:t<=11?3:4;
+const P2=[0,0,1,2,3,4,5,6,5,4,3,2,1];
+function odds(mod){const o=[0,0,0,0,0];for(let s=2;s<=12;s++)o[tierOf(s+mod)]+=P2[s]/36;return o}
+const SK=['pilot','eng','med','gun','sys','neg'];
+const SKN={pilot:'Piloting',eng:'Engineering',med:'Medicine',gun:'Gunnery',sys:'Systems',neg:'Negotiation'};
+const SKS={pilot:'PLT',eng:'ENG',med:'MED',gun:'GUN',sys:'SYS',neg:'NEG'};
+const PLACES={Ceres:{f:'Belt',fuel:1,food:1},Vesta:{f:'Belt',fuel:1.1,food:1.1},Mars:{f:'Mars',fuel:.9,food:1.25},Luna:{f:'Earth',fuel:1.1,food:.9},Ganymede:{f:'Outer',fuel:1.3,food:1}};
+const DIST={'Ceres-Vesta':3,'Ceres-Mars':6,'Ceres-Ganymede':8,'Ceres-Luna':9,'Vesta-Mars':5,'Vesta-Ganymede':10,'Vesta-Luna':8,'Mars-Luna':4,'Mars-Ganymede':9,'Luna-Ganymede':11};
+const THR={'Ceres-Vesta':2,'Ceres-Mars':1,'Ceres-Ganymede':2,'Ceres-Luna':1,'Vesta-Mars':1,'Vesta-Ganymede':3,'Vesta-Luna':2,'Mars-Luna':0,'Mars-Ganymede':1,'Luna-Ganymede':1};
+const dist=(a,b)=>DIST[a+'-'+b]||DIST[b+'-'+a];
+const WORLD=[{n:'Raider surge',d:'Pirate activity is up around the Belt.',t:(a,b)=>(PLACES[a].f=='Belt'||PLACES[b].f=='Belt')?1:0},
+ {n:'Earth–Mars tension',d:'Navy patrols and customs checks everywhere inner-system.',t:(a,b)=>['Mars','Earth'].some(f=>PLACES[a].f==f||PLACES[b].f==f)?1:0,customs:1},
+ {n:'Fuel shortage',d:'Fuel costs 40% more everywhere.',t:()=>0,fuel:1.4}];
+const BURN={cruise:{n:'Cruise',days:1,fuel:2,note:'Standard burn.'},hard:{n:'Hard Burn',days:.7,fuel:4,note:'30% fewer days, +40% fuel, +1 stress to everyone, injuries more likely.'},eco:{n:'Economy',days:1.4,fuel:1.2,note:'40% more days, 16% less fuel, more time for trouble to find you.'}};
+const RATION={full:{f:1,s:0,n:'Full rations',note:'Normal food use, no morale cost.'},half:{f:.7,s:.25,n:'Half rations',note:'30% less food. Stress creeps up.'},quarter:{f:.5,s:.7,n:'Starvation rations',note:'50% less food. Stress climbs fast.'}};
+const PRICE={fuel:20,food:8,spares:60,meds:40,slug:8,torp:85,belt:3,cm:25};
+const HOLDW={food:.25,spares:1,meds:.5,slug:.2,torp:1.5,belt:.1,cm:.3};
+const AMMO=['slug','torp','belt','cm'];const AMN={slug:'Rail slugs',torp:'Torpedoes',belt:'PDC belts',cm:'Decoys'};const WAM={rail:'slug',torp:'torp',pdc:'belt'};
+/* fire levels: n = rounds spent, a = attack bonus, d = extra damage (torpedoes: per-missile count) */
+const WFIRE={rail:[{n:1,l:'Single',a:0,d:0},{n:2,l:'Double tap',a:1,d:2},{n:3,l:'Barrage',a:2,d:4}],torp:[{n:1,l:'One torpedo',a:0,d:0},{n:2,l:'Salvo of two',a:1,d:0}],pdc:[{n:1,l:'Short burst',a:0,d:0},{n:2,l:'Long burst',a:1,d:1},{n:4,l:'Sustained',a:2,d:2}]};
+const HOLD=40,UPG={hull:{n:'Reinforced plating',d:'+8 max hull, repaired on install',cost:600,max:2},tank:{n:'Extended fuel tanks',d:'+20 fuel capacity',cost:400,max:2},hold:{n:'Cargo bay expansion',d:'+8 hold space',cost:700,max:2},drive:{n:'Corrin Drive tuning',d:'−10% fuel use on every burn',cost:900,max:2},rail:{n:'Railgun capacitors',d:'+1 railgun damage',cost:800,max:2},pdc:{n:'Second PDC mount',d:'+2 PDC strength and better torpedo intercept',cost:700,max:1},sens:{n:'Sensor array refit',d:'+1 to all attack rolls',cost:600,max:1},doc:{n:'Auto-doc bay',d:'Injured heal twice as fast; critical cases stabilize on their own',cost:900,max:1},ecm:{n:'ECM suite',d:'+2 to jamming and hacking incoming torpedoes',cost:700,max:1},berth:{n:'Better berths',d:'Crew shed stress faster',cost:600,max:1}},DEADLINE=50,DEBT0=6500;
+const FACT=['Earth','Mars','Belt','Outer'];
+const NAMES=['Ilse Brandt','Tobias Kehl','Marisol Vega','Abe Quill','Noor Haddad','Pavel Orlov','Chidi Mensah','Wren Tallis','Yusuf Amir','Dagny Holm','Sol Reyes','Imani Cole','Karl Ibsen','Mina Park','Rafa Duarte'];
+const TRAITS=['Cautious','Reckless','Calm','Loyal','Paranoid','Ambitious'];
+const BGS=['Ex-military','Ex-corp','Belter','Academic','Convict','Smuggler\'s kid'];
+let G=null,CID=1;
+const sub=(c)=>c;
+function mkCrew(name,sk,tr,bg,wage){return{id:CID++,name,sk:Object.assign({pilot:0,eng:0,med:0,gun:0,sys:0,neg:0},sk),tr,bg,wage:wage||100,stress:0,inj:0,heal:0,dying:0,away:0,broke:0}}
+function mkHire(){const a=pick(SK),b=pick(SK.filter(x=>x!=a));return mkCrew(pick(NAMES),{[a]:rint(1,3),[b]:rint(0,2)},[pick(TRAITS)],pick(BGS),rint(80,130))}
+const bp=c=>8+(c.tr.includes('Calm')?2:0)-(c.tr.includes('Paranoid')?1:0);
+function tierName(c){const r=c.stress/bp(c);return r>=1?'Breaking':r>=.7?'Frayed':r>=.4?'Strained':'Steady'}
+const tierPen=c=>({Steady:0,Strained:0,Frayed:-1,Breaking:-2})[tierName(c)];
+function addStress(c,n){if(n>0&&c.tr.includes('Calm'))n=Math.max(0,n-1);c.stress=clamp(c.stress+n,0,15)}
+const alive=()=>G.crew.filter(c=>c.inj<2&&!c.away);
+const hold=()=>{const s=G.ship;let h=(G.job?G.job.units:0);for(const k in HOLDW)h+=s[k]*HOLDW[k];return Math.round(h*10)/10};
+function log(t,cls){G.log.unshift({d:G.day,t,c:cls||''});if(G.log.length>80)G.log.pop()}
+function skillMod(c,sk,ap){let m=(c.sk[sk]||0)+tierPen(c)-(c.inj==1?1:c.inj==2?3:0);if(ap){m+=ap.m||0;if(c.tr.includes('Cautious')&&ap.risk===0)m+=1;if(c.tr.includes('Reckless')&&ap.risk===2)m+=1}if(sk=='sys'&&c.tr.includes('Paranoid'))m+=1;if(G.trip&&G.trip.burn=='hard'&&sk=='pilot')m-=0;return clamp(m,-5,5)}
+function faultFx(k){return G.ship.faults.filter(f=>f.fx==k).length}
+function hurtRoll(c,sk,why){const d=[d6(),d6()];let t=d[0]+d[1]+(c.sk[sk]||0)+tierPen(c)+(G.trip&&G.trip.burn=='hard'?-1:0);let r;
+ if(t>=9)r='braced';else if(t>=6){c.inj=Math.min(2,c.inj+1);c.heal=6;r='hurt';G.st.hurt++}else{c.inj=2;c.dying=3;c.heal=0;r='serious';G.st.hurt++}
+ if(r!='braced'){addStress(c,1);G.crew.forEach(o=>{if(o!==c)addStress(o,r=='serious'?2:1)})}
+ log(`${c.name} ${r=='braced'?'braced in time and avoided injury':r=='hurt'?'was hurt':'was seriously injured'} (${d[0]}+${d[1]}${t-d[0]-d[1]>=0?'+':''}${t-d[0]-d[1]}).`,r=='braced'?'':'bad');return r}
+const FAULTS={drive:[['Injector misfire','No Hard Burn until fixed','hard'],['Coolant leak','Fuel burn +30%','fuel']],weap:[['Feed jam','-1 to attack rolls','atk'],['Targeting drift','-1 to attack rolls','atk']],sens:[['Cracked array','-1 to attack rolls','atk'],['Noisy transponder','Incident chance +6%','inc']],pdc:[['Servo jam','Torpedo intercept -2','pdc']],life:[['Scrubber fault','+1 stress per day to everyone','str'],['Heater loop leak','Food spoils faster','food']]};
+function addFault(subs){const k=subs||pick(Object.keys(FAULTS));const opts=FAULTS[k].filter(f=>!G.ship.faults.some(x=>x.n==f[0]));if(!opts.length)return null;const f=pick(opts);G.ship.faults.push({n:f[0],d:f[1],fx:f[2],sub:k,age:0});return f[0]}
+/* ---------- effects ---------- */
+function eff(tk,ctx,dry){const m=tk.match(/^([A-Za-z]+)(?::([A-Za-z0-9]+))?([+-]\d+)?$/);if(!m)return '';const k=m[1],arg=m[2],n=m[3]?+m[3]:0,s=G.ship,ac=ctx.actor,sj=ctx.subject;const sg=v=>(v>0?'+':'')+v;
+ const num=(key,label,mx)=>{if(!dry){s[key]=clamp(s[key]+n,0,mx||999)}return`${label} ${sg(n)}`};
+ switch(k){
+ case'hull':if(!dry)s.hull=clamp(s.hull+n,0,s.hullMax);return'Hull '+sg(n);
+ case'fuel':return num('fuel','Fuel',s.fuelMax);
+ case'food':return num('food','Food');case'spares':return num('spares','Spares');case'meds':return num('meds','Meds');case'slug':case'mun':return num('slug','Rail slugs');case'torp':return num('torp','Torpedoes');case'belt':return num('belt','PDC belts');case'cm':return num('cm','Decoys');
+ case'cred':if(!dry){G.credits+=n;if(n<0&&G.credits<0)G.credits=0}return'Credits '+sg(n);
+ case'delay':if(!dry&&G.trip)G.trip.total+=n;return'+'+n+' day'+(n>1?'s':'');
+ case'skip':if(!dry&&G.trip)G.trip.total=Math.max(G.trip.done+1,G.trip.total-n);return'−'+n+' day'+(n>1?'s':'')+' saved';
+ case'stress':if(!dry&&ac)addStress(ac,n);return(ac?ac.name.split(' ')[0]:'')+' stress '+sg(n);
+ case'stressS':if(!dry&&sj)addStress(sj,n);return(sj?sj.name.split(' ')[0]:'')+' stress '+sg(n);
+ case'stressAll':if(!dry)G.crew.forEach(c=>addStress(c,n));return'Crew stress '+sg(n);
+ case'hurt':if(!dry&&ac)hurtRoll(ac,ctx.sk||'eng');return ac?'Injury risk: '+ac.name.split(' ')[0]:'';
+ case'hurtS':if(!dry&&sj)hurtRoll(sj,'med');return sj?'Injury risk: '+sj.name.split(' ')[0]:'';
+ case'fault':if(!dry){const f=addFault();if(f)log('Fault: '+f,'bad')}return'Ship fault';
+ case'cargo':if(!dry&&G.job){G.job.units=Math.max(0,G.job.units+n);G.job.lost=(G.job.lost||0)-n}return'Cargo '+sg(n);
+ case'cargoAll':if(!dry&&G.job){G.job.lost=(G.job.lost||0)+G.job.units;G.job.units=0}return'All cargo lost';
+ case'rep':if(!dry)G.rep[arg]+=n;return arg+' rep '+sg(n);
+ case'flag':if(!dry)G.q.flags[arg]=1;return'';
+ case'loot':if(!dry){const c=rint(150,450);G.credits+=c;let t='';if(rnd()<.45){s.spares++;t+=' +1 spares'}if(rnd()<.4){s.slug+=6;t+=' +6 rail slugs'}if(rnd()<.3){s.belt+=6;t+=' +6 PDC belts'}if(rnd()<.15){s.torp+=1;t+=' +1 torpedo'}if(rnd()<.25){s.cm+=2;t+=' +2 decoys'}ctx.lootNote=`Salvaged ${c} credits${t}.`;log(ctx.lootNote,'good')}return'Salvage';
+ case'combat':case'ambush':if(!dry)ctx.combat=[arg,k=='ambush'];return(k=='ambush'?'Ambushed: ':'Combat: ')+(ENEMIES[arg]?ENEMIES[arg].name:arg);
+ case'world':if(!dry){G.ev={e:WORLD[+arg],until:G.day+25};log('World event: '+WORLD[+arg].n,'warn')}return'World event: '+WORLD[+arg].n;
+ case'item':if(!dry){G.ship.item=arg;if(arg=='pdc2'){G.ship.sub.pdc+=2;G.ship.subMax.pdc+=2}}return'Gained: '+(arg=='pdc2'?'Prototype PDC mount':arg);
+ case'discount':if(!dry)G.fuelDiscount=n/100;return'Fuel -'+(n/100*100)+'% (Co-op scrip)';
+ case'repair':if(!dry){const f=s.faults.shift();if(f)log('Repaired: '+f.n)}return'Fault repaired';
+ }return''}
+const chips=(effs,ctx)=>(effs?effs.split(',').filter(Boolean):[]).map(t=>eff(t,ctx,true)).filter(Boolean);
+function applyEffs(effs,ctx){(effs?effs.split(',').filter(Boolean):[]).forEach(t=>eff(t,ctx,false))}
+/* ---------- incidents ---------- */
+const A=(label,sk,m,risk,out,x)=>Object.assign({label,sk,m,risk,out},x||{});
+const AU=(label,txt,effs,risk,x)=>Object.assign({label,sk:null,m:0,risk:risk||0,out:{A:[txt,effs]}},x||{});
+const INC={
+coolant:{title:'Coolant leak',tag:'mech',w:g=>3+g.ship.faults.length,text:'A coolant line is weeping into the engine bay. Temperatures are climbing and the drive is throttling itself.',ap:[
+ A('Field repair','eng',0,0,{0:['The patch blows under pressure.','hull-3,spares-1,fault,hurt'],1:['It does not hold. You lose a day re-welding.','spares-1,delay+1'],2:['It holds, but it ate your spares and some fuel.','spares-1,fuel-2'],3:['Clean repair.','spares-1'],4:['Clean repair, and you retune the loop for better efficiency.','fuel+3']},{need:g=>g.ship.spares<1?'No spares':''}),
+ A('Overload and push through','pilot',0,2,{0:['The drive trips offline mid-burn.','fault,hull-2,hurt,delay+1'],1:['Coolant sprays across the engine room.','fuel-4,hurt'],2:['It holds, barely, burning extra fuel.','fuel-3,stress+1'],3:['You outrun the failure and save a day.','skip+1'],4:['A textbook push. You shave two days.','skip+2,stress-1']}),
+ AU('Shut down and drift','It costs a day and some fuel, but nobody gets hurt.','delay+1,fuel-3')]},
+fire:{title:'Fire in the galley',tag:'mech',w:()=>2,text:'An overheated heater has set the galley alight. Smoke is spreading toward the berths.',ap:[
+ A('Suppress it','eng',0,0,{0:['The fire spreads before you stop it.','hull-2,food-6,hurt,stressAll+1'],1:['You put it out, but lose supplies.','food-5'],2:['Out, with some damage.','food-3'],3:['Out quickly.','food-1'],4:['Out in seconds. You even save the stores.','stress-1']}),
+ AU('Vent the compartment','Cold, fast, and the galley stock is gone.','food-6,stressAll+1',0),
+ A('Send in volunteers','gun',0,2,{0:['Someone goes down in the smoke.','hurt,food-4,stressAll+1'],1:['Slow going, and someone gets burned.','hurt,food-3'],2:['The fire is out; the stores are scorched.','food-2'],3:['Crew handle it like pros.','stress-1'],4:['Heroics. Crew morale lifts.','stressAll-1']})]},
+debris:{title:'Debris field',tag:'nav',w:g=>3,text:'Sensors light up. A drifting debris cloud is directly across your track.',ap:[
+ A('Evasive burn','pilot',0,1,{0:['A slug punches the hull.','hull-5,fault'],1:['You dodge most of it.','hull-3,fuel-2'],2:['A few impacts, nothing serious.','hull-1,fuel-2'],3:['Clean dodge.','fuel-1'],4:['Threaded it perfectly and saved time.','skip+1']}),
+ A('Plot a clear lane','sys',0,0,{0:['The plot is wrong and you clip it.','hull-3,delay+1'],1:['The detour is long.','delay+1,fuel-3'],2:['A detour costs fuel.','fuel-2'],3:['A clean detour.','fuel-1'],4:['You find a shortcut through the cloud.','skip+1']}),
+ AU('Ride it out','Shields of luck. The hull takes a beating.','hull-4',2)]},
+flare:{title:'Solar flare',tag:'nav',w:()=>2,text:'A radiation spike rolls through the system. Alarms want you in the shielded core.',ap:[
+ AU('Shelter in the core','You lose time but everyone is safe.','delay+1,stressAll+1',0),
+ A('Reroute shielding','eng',0,1,{0:['Shielding fails; the crew takes a dose.','hurt,stressAll+2,fault'],1:['Partial protection. Systems glitch.','stressAll+1,fault'],2:['Mostly shielded.','stressAll+1'],3:['Shields hold.','spares-0'],4:['Shields hold and you log useful data.','cred+150']}),
+ A('Press on','sys',0,2,{0:['Instruments fry and the crew gets sick.','hurt,hull-2,fault,stressAll+2'],1:['Rough dose, damaged sensors.','fault,stressAll+1'],2:['You get lucky.','stress+1'],3:['It passes. You saved time.','skip+1'],4:['You thread it and save two days.','skip+2']})]},
+illness:{title:'Sick bay case',tag:'med',w:g=>g.crew.length>1?2:0,text:'{S} has a fever and is shaking. If it spreads it will hit the whole crew.',ap:[
+ A('Treat the patient','med',0,0,{0:['Treatment fails and it spreads.','hurtS,stressAll+2,meds-1'],1:['Treatment slow; {S} is sidelined.','hurtS,meds-1'],2:['Contained, with some stress.','stressS+1,meds-1'],3:['Cured.','meds-1'],4:['Cured and the crew is impressed.','meds-1,stressAll-1']},{need:g=>g.ship.meds<1?'No meds':''}),
+ AU('Quarantine them','Safe but isolating; the crew works short-handed.','delay+1,stressS+2',0),
+ AU('Keep working','A gamble. Fevers do not read schedules.','stressAll+1,hurtS',2)]},
+dispute:{title:'Crew dispute',tag:'social',w:g=>g.crew.length>2?2+Math.floor(g.crew.reduce((a,c)=>a+c.stress,0)/8):0,text:'{S} and {T} are screaming at each other in the mess over a stolen ration. Others are watching.',ap:[
+ A('Mediate','neg',0,0,{0:['You make it worse. A punch gets thrown.','hurtS,stressAll+2'],1:['They stop, resentful.','stressS+2'],2:['Cooled down, grudgingly.','stressS+1'],3:['Cooled down and apologising.','stressAll-1'],4:['They end up friends.','stressAll-2']}),
+ AU('Split their shifts','It works, and it costs you flexibility.','stressS+1,delay+0',0),
+ A('Let them fight it out','gun',0,2,{0:['Someone gets seriously hurt.','hurtS,stressAll+2'],1:['Split lip, bad blood.','stressAll+1'],2:['Blow off steam; it works.','stressS-1'],3:['They settle it with a handshake.','stressAll-1'],4:['Crew bonds over it.','stressAll-2']})]},
+distress:{title:'Distress call',tag:'enc',w:g=>2,text:'A weak mayday on the emergency band: a small ship, three survivors, drifting. The signal is almost too clean.',ap:[
+ A('Verify the signal first','sys',0,0,{0:['It was a trap, and they saw you listening.','ambush:skiff'],1:['It is a trap, and you spot it too late.','combat:skiff'],2:['You are not sure. You skip it.','stress+1'],3:['Real survivors. You pick them up.','cred+300,rep:Outer+1'],4:['Real, and grateful. A big reward.','cred+600,rep:Outer+1,stressAll-1']}),
+ A('Respond at once','pilot',0,2,{0:['A trap, and you are in their sights.','ambush:corvette'],1:['A trap. The scavs open fire.','ambush:skiff'],2:['Real. Rough pickup.','cred+150,delay+1'],3:['Real survivors. You save them.','cred+350,rep:Outer+1,delay+1'],4:['Real and generous. They pay well.','cred+700,rep:Outer+1']}),
+ AU('Log it and keep going','The silence in the mess is loud.','stressAll+1')]},
+derelict:{title:'Drifting derelict',tag:'enc',w:()=>2,text:'A cold hull tumbles slowly off your bow. No transponder, no running lights, a ragged hole in one flank.',ap:[
+ A('Board and strip it','eng',0,1,{0:['A booby trap. The boarding team barely gets out.','hurt,fault,delay+1'],1:['Slim pickings and a long cleanup.','delay+1,loot'],2:['Some salvage.','loot,delay+1'],3:['Good haul.','loot,loot'],4:['The hold is full of goods.','loot,loot,loot']}),
+ A('Scan first, cherry-pick','sys',0,0,{0:['The scan misses a live charge.','hurt,delay+1'],1:['Nothing of value.','delay+1'],2:['A small prize.','loot'],3:['A tidy haul.','loot'],4:['A hidden cache.','loot,loot']}),
+ AU('Leave it','Not worth the risk.','')]},
+customs:{title:'Customs hail',tag:'social',w:g=>(g.job?2:0)+(g.ev&&g.ev.e.customs?3:0)+1,text:'A patrol cutter paints you with a targeting laser and demands to inspect your hold.',ap:[
+ AU('Cooperate','You lose half a day and a little face.','delay+1,cred-100',0),
+ A('Talk your way through','neg',0,1,{0:['They find something off and fine you.','cred-400,delay+1,rep:Earth-1'],1:['A fine and a lecture.','cred-200,delay+1'],2:['A thorough search, but you pass.','delay+1'],3:['They wave you on.','stress-1'],4:['They wave you on and tip you off.','rep:Earth+1,stress-1']}),
+ A('Run for it','pilot',0,2,{0:['You get shot at and hit.','ambush:navy'],1:['They give chase.','combat:navy'],2:['You get away, but the fuel is gone.','fuel-6,rep:Mars-1'],3:['You slip away.','fuel-4'],4:['They lose you.','fuel-3']})]},
+pirates:{title:'Pirate corvette',tag:'enc',w:g=>g.trip?6*g.trip.threat:0,text:'A single contact closes fast on an intercept course, running dark. A raider corvette hails you and demands you cut your drive.',ap:[
+ AU('Stand and fight','Weapons hot, crew to stations.','combat:corvette',2),
+ A('Parley','neg',0,1,{0:['They laugh and open fire.','ambush:corvette'],1:['They want everything. Talks collapse.','combat:corvette'],2:['They take a toll and go.','cred-300'],3:['A smaller toll.','cred-120'],4:['They let you pass, and an old name gets dropped.','rep:Belt+1']}),
+ AU('Surrender your cargo','They strip the hold and leave. The client will hear about it.','cargoAll,rep:Belt-1,stressAll+1',0,{need:g=>g.job?'':'No cargo to give'}),
+ A('Run','pilot',-1,2,{0:['They rake you as you turn.','hull-6,hurt,fault'],1:['They get a few shots in.','hull-4,fuel-5'],2:['You escape with burn damage.','hull-2,fuel-6'],3:['You break contact.','fuel-5'],4:['You leave them in the dust.','fuel-4']})]},
+raiders:{title:'Raider warband',tag:'enc',w:g=>g.trip&&g.trip.threat>=3?6:0,text:'A black-hulled raider locks onto you. No hail, no demand. They are not here to talk.',ap:[
+ AU('Fight','There is no other answer.','combat:raider',2),
+ A('Run','pilot',-2,2,{0:['They rake you as you turn.','hull-7,hurt,fault'],1:['Hit repeatedly as you flee.','hull-5,fuel-6,fault'],2:['You escape with burn damage.','hull-3,fuel-7'],3:['You break contact.','fuel-6'],4:['Clean getaway.','fuel-5']})]},
+trader:{title:'Passing trader',tag:'econ',w:()=>2,text:'A rust-streaked trader hails you with a friendly offer: spare parts, no questions.',ap:[
+ AU('Buy parts (200)','Two spares, hold space permitting.','cred-200,spares+2',0,{need:g=>g.credits<200?'Not enough credits':''}),
+ A('Haggle','neg',0,1,{0:['They report you. A fine follows.','cred-150'],1:['They just shrug.',''],2:['A small discount.','cred-100,spares+2'],3:['A good deal.','spares+2'],4:['They throw in meds.','spares+2,meds+2']}),
+ AU('Wave them off','Nothing happens.','')]},
+shortcut:{title:'Possible shortcut',tag:'nav',w:()=>2,text:'Your navigator spots a thin ballistic corridor that might save you a day if the numbers hold.',ap:[
+ A('Take the shortcut','pilot',0,1,{0:['A gravity snag throws you off.','delay+1,fuel-3,hull-2'],1:['It is a dud.','delay+1'],2:['Pays off a little.','skip+1,fuel-1'],3:['Pays off.','skip+1'],4:['Beautiful. It saves two days.','skip+2']}),
+ AU('Stay on plan','No change.','')]},
+break:{title:'Crew breaking point',tag:'social',w:()=>0,text:'{S} has reached a breaking point. {STYLE}',ap:[
+ A('Talk them down','neg',0,0,{0:['It makes it worse.','stressAll+2,stressS+1'],1:['No luck.','stressS+0'],2:['They steady, shakily.','stressS-4'],3:['They come back.','stressS-6'],4:['They come back stronger.','stressS-8,stressAll-1']}),
+ A('Medical sedation','med',0,0,{0:['They are out for the count.','stressS-5,meds-1,stressAll+1'],1:['It barely helps.','stressS-2,meds-1'],2:['It works for now.','stressS-5,meds-1'],3:['It works.','stressS-6,meds-1'],4:['It works well.','stressS-8,meds-1']},{need:g=>g.ship.meds<1?'No meds':''}),
+ AU('Let it play out','Risky and bad for the others.','stressAll+1,hurtS',2)]},
+adrift:{title:'Dead in the water',tag:'mech',w:()=>0,text:'The tanks are dry. The drive coughs and goes silent. You are drifting.',ap:[
+ AU('Call a tug (600)','The tug costs a fortune and a few days.','cred-600,fuel+14,delay+3',0),
+ AU('Siphon from fittings','You burn spares as fuel and risk a fire.','spares-2,fuel+10,delay+1,fault',1,{need:g=>g.ship.spares<2?'Not enough spares':''})]}
+};
+const BREAKSTYLE={Cautious:'They go quiet and start packing a bag.',Reckless:'They have started planning something stupid.',Loyal:'They freeze up on duty, unable to move.',Paranoid:'They are accusing the others of sabotage.',Calm:'They have stopped talking and start repeating a scripture.',Ambitious:'They want out and are making calls to a rival.'};
+/* ---------- quest: Water Rights ---------- */
+const QINC={
+q1:{title:'Customs at Vesta',tag:'quest',text:'Inspector Hartley of the Earth Water Authority boards at the gate. "Manifest. Now. These drills are not on any approved list."',ap:[
+ A('Stonewall him','neg',0,1,{0:['Hartley impounds half the drills and logs you.','cargo-4,rep:Earth-2,rep:Belt+1,cred-400'],1:['A fine and an Earth black mark.','rep:Earth-2,cred-400,rep:Belt+1'],2:['He backs off, annoyed.','rep:Earth-1,rep:Belt+1'],3:['He finds nothing actionable.','rep:Belt+2'],4:['He leaves flustered. The Co-op hears about it.','rep:Belt+3,cred+200']}),
+ AU('Hand over a clean manifest','You stay out of trouble and lose face.','rep:Earth+1,rep:Belt-1',0),
+ AU('Sell out the Co-op for 1,200','Hartley smiles. The Co-op will know someone talked.','cred+1200,rep:Earth+2,rep:Belt-3,flag:betrayed',0),
+ A('Bluff: medical shipment','sys',-1,2,{0:['He opens the crate. Backup arrives.','ambush:navy,rep:Earth-2'],1:['Not buying it. You are fined.','cred-500,rep:Earth-2'],2:['He delays you a day, then lets you go.','delay+0,stressAll+1'],3:['He waves you through.','rep:Belt+1,cred+300'],4:['Hartley salutes. A real hero of the Co-op.','rep:Belt+2,cred+400']})]},
+q2b:{title:'Blockade at Ganymede',tag:'quest',text:'The Water Authority has put cutters across the Ganymede approach. The Co-op needs the pump key delivered through them. A navy officer on comms asks you to identify.',ap:[
+ A('Bluff your way through','neg',-1,2,{0:['They see through it and open fire.','ambush:navy,rep:Earth-2'],1:['They hold you at gunpoint, then open fire.','combat:navy'],2:['They wave you through after a long hold.','delay+1,stressAll+1'],3:['They let you pass.','rep:Belt+1'],4:['The officer decides he did not see you.','rep:Belt+2,rep:Earth+0']}),
+ AU('Break the blockade','Weapons free.','combat:navy,rep:Belt+1',2),
+ AU('Dump the cargo and turn back','No pay and no trouble.','cargoAll,rep:Belt-2,stressAll+1',0)]},
+q2e:{title:'Raiders on the tug route',tag:'quest',text:'The Earth survey tug you escort is under attack by raiders flying Belt colors, or someone dressed as them.',ap:[
+ AU('Engage the raiders','Drive off the attackers.','combat:raider,rep:Earth+1',2),
+ A('Hail the raiders','neg',-1,1,{0:['They fire on the tug.','ambush:raider,rep:Earth-1'],1:['They ignore you.','combat:raider'],2:['They back off, grumbling.','rep:Belt+1'],3:['They back off. One recognises the Kestrel.','rep:Belt+1,rep:Earth+1'],4:['They leave the tug alone.','rep:Belt+2,rep:Earth+1']})]},
+q3:{title:'The pump station key',tag:'quest',text:'At Ganymede, both factions are waiting. The Water Authority wants the pump station under its control. The Co-op says it belongs to the people who drink from it. The key is in your hands.',ap:[
+ AU('Give it to the Co-op','The Belt gets free water. Earth will not forget.','rep:Belt+3,rep:Earth-3,cred+800,item:pdc2,world:0',0),
+ AU('Give it to the Water Authority','Earth takes control. The Belt will burn for it.','rep:Earth+3,rep:Belt-3,cred+2200,world:1',0),
+ A('Broker a shared compact','neg',-1,1,{0:['The meeting collapses into shouting.','rep:Earth-1,rep:Belt-1,stressAll+2,world:0'],1:['Neither side trusts you.','cred+400,stressAll+1'],2:['A shaky compact.','cred+900,rep:Earth+1,rep:Belt+1'],3:['A compact that holds for now.','cred+1400,rep:Earth+1,rep:Belt+1,discount:20'],4:['Peace, for now. Both sides honor you.','cred+2000,rep:Earth+2,rep:Belt+2,discount:20,item:pdc2']})]}
+};
+/* ---------- enemies and combat ---------- */
+const ENEMIES={skiff:{name:'Scav skiff "Rattler"',kind:'pirate',hull:10,drive:3,weap:3,sens:2,pdc:1,atk:0,pil:0,dmg:3,torps:0,pref:2,flee:.5,loot:[100,300]},
+ corvette:{name:'Raider corvette "Mangler"',kind:'pirate',hull:18,drive:4,weap:4,sens:3,pdc:2,atk:1,pil:1,dmg:5,torps:2,pref:1,flee:.4,loot:[250,600]},
+ raider:{name:'Raider warship "Black Flag"',kind:'raider',hull:24,drive:5,weap:5,sens:4,pdc:3,atk:2,pil:2,dmg:6,torps:4,pref:1,flee:.25,loot:[500,900]},
+ navy:{name:'Patrol cutter "Dauntless"',kind:'navy',hull:22,drive:5,weap:5,sens:4,pdc:3,atk:1,pil:2,dmg:5,torps:2,pref:0,flee:0,loot:[0,0]}};
+const RANGE=['Long','Medium','Close'];
+const WMOD={rail:[1,1,0],torp:[0,1,-2],pdc:[-4,-1,2]};
+const WDMG={rail:4,torp:8,pdc:2};
+/* anti-torpedo doctrine: first layer tried; remaining free/cheap layers follow automatically */
+const TDOC={pdc:{n:'PDC fire',s:'1 belt'},flak:{n:'Flak screen',s:'3 belts, +3'},decoy:{n:'Decoys',s:'1 decoy'},ecm:{n:'Jam / hack',s:'free'},evade:{n:'Hard turn',s:'free, −1 your attack'}};
+const TCHAIN={pdc:['pdc','ecm','evade'],flak:['flak','ecm','evade'],decoy:['decoy','pdc','ecm','evade'],ecm:['ecm','evade','pdc'],evade:['evade','ecm','pdc']};
+function pAtLeast(mod,T){let p=0;for(let s=2;s<=12;s++)if(s+mod>=T)p+=P2[s]/36;return p}
+const WN={rail:'Railgun',torp:'Torpedo',pdc:'PDC'};
+const TARGN={hull:'Hull',drive:'Drive',weap:'Weapons',sens:'Sensors'};
+/* ---------- game state ---------- */
+const holdMax=()=>HOLD+8*((G&&G.up&&G.up.hold)||0),fr=()=>1-.1*((G&&G.up&&G.up.drive)||0);
+function newGame(s){if(s!=null)setSeed(s);CID=1;
+ G={day:1,loc:'Ceres',credits:1800,debt:DEBT0,fate:2,phase:'station',tab:'jobs',burn:'cruise',ration:'full',dest:null,
+  ship:{name:'Kestrel',hull:40,hullMax:40,fuel:40,fuelMax:80,food:24,spares:3,meds:2,slug:14,torp:2,belt:16,cm:4,faults:[],sub:{drive:6,weap:6,sens:4,pdc:4,life:4},subMax:{drive:6,weap:6,sens:4,pdc:4,life:4},item:null},
+  crew:[mkCrew('Dana Reyes',{pilot:3,neg:2,gun:1,sys:1},['Cautious'],'Ex-military',120),mkCrew('Femi Okafor',{eng:3,sys:1,pilot:1},['Calm'],'Belter',100),mkCrew('Tamsin Ward',{med:3,sys:2,neg:1},['Loyal'],'Academic',100),mkCrew('Joss Vance',{gun:3,pilot:1,eng:1},['Reckless'],'Smuggler\'s kid',90)],
+  up:{},dlog:[],dead:[],rep:{Earth:0,Mars:0,Belt:0,Outer:0},ev:null,evNext:10,job:null,jobs:[],hire:null,trip:null,log:[],q:{stage:0,flags:{}},inc:null,queue:[],cb:null,over:null,paidInstall:false,fuelDiscount:0,
+  st:{dec:0,rolls:0,tiers:[0,0,0,0,0],fate:0,combats:0,rounds:0,hurt:0,dead:0,breaks:0,trips:0,peak:1800,delivered:0,earned:0,lastAct:0}};
+ G.crew.forEach(c=>{c.stress=0});
+ log('You own the Kestrel, and Marta Quill owns the note. 6,500 credits due by day '+DEADLINE+'; 1,500 minimum by day 25.','warn');
+ genStation();return G}
+const price=k=>Math.round(PRICE[k]*(k=='fuel'?(PLACES[G.loc].fuel*(G.ev&&G.ev.e.fuel||1)*(1-G.fuelDiscount)):k=='food'?PLACES[G.loc].food:1));
+function threat(a,b){let t=THR[a+'-'+b]!=null?THR[a+'-'+b]:THR[b+'-'+a];if(G.ev)t+=G.ev.e.t(a,b);return clamp(t,0,4)}
+function genStation(){const places=Object.keys(PLACES).filter(p=>p!=G.loc);const jobs=[];
+ for(let i=0;i<3;i++){const to=pick(places);const D=dist(G.loc,to),th=threat(G.loc,to);const units=pick([4,6,8,10,12,14]);const cour=rnd()<.25;
+  const u=cour?2:units,fac=pick(FACT);const pay=Math.round((u*D*(cour?34:18)*(1+.22*th)+(cour?220:0))/10)*10;
+  jobs.push({id:'j'+i+G.day,type:cour?'Courier':'Haul',to,units:u,pay,days:Math.ceil(D*(cour?1:1.15))+(cour?0:1),th,fac,D})}
+ if(G.q.stage==0&&G.loc=='Ceres'&&G.day<=15)jobs.push({id:'q1',type:'Story',title:'Ice drills to Vesta',to:'Vesta',units:8,pay:2000,days:7,th:2,fac:'Belt',D:dist('Ceres','Vesta'),quest:1});
+ if(G.q.stage==2&&G.loc=='Vesta')jobs.push(G.q.flags.betrayed?{id:'q2e',type:'Story',title:'Escort Earth survey tug to Ganymede',to:'Ganymede',units:6,pay:2900,days:13,th:3,fac:'Earth',D:10,quest:2,ambush:'raider'}:{id:'q2b',type:'Story',title:'Run the pump key to Ganymede',to:'Ganymede',units:2,pay:2700,days:13,th:3,fac:'Belt',D:10,quest:2,ambush:'navy'});
+ G.jobs=jobs;G.hire=rnd()<.7&&G.crew.length<6?mkHire():null}
+/* ---------- station actions ---------- */
+function canBuy(k,n){const s=G.ship;if(G.credits<price(k)*n)return 'Not enough credits';if(k=='fuel')return s.fuel+n>s.fuelMax?'Tank full':'';const extra=(HOLDW[k]||0)*n;return hold()+extra>holdMax()?'Hold is full':''}
+function buy(k,n){const r=canBuy(k,n);if(r)return r;G.credits-=price(k)*n;G.ship[k]+=n;return''}
+function acceptJob(id){const j=G.jobs.find(x=>x.id==id);if(!j||G.job)return;if(hold()+j.units>holdMax())return 'Hold is full';G.job=Object.assign({},j,{taken:G.day,lost:0});G.jobs=G.jobs.filter(x=>x!=j);G.dest=j.to;if(j.quest)G.q.stage=Math.max(G.q.stage,j.quest);log('Accepted: '+(j.title||j.type+' to '+j.to)+' ('+j.units+' units, '+j.pay+' cr).');return''}
+function dropJob(){if(!G.job)return;if(G.job.quest){return 'Story job: cannot drop.'}G.job=null;G.dest=null;return''}
+function tripPlan(){if(!G.dest||G.dest==G.loc)return null;const D=dist(G.loc,G.dest),b=BURN[G.burn];const days=Math.max(1,Math.ceil(D*b.days)),fuel=Math.round(days*b.fuel*fr());return{D,days,fuel,food:Math.round(days*G.crew.length*.5*10)/10,th:threat(G.loc,G.dest)}}
+function depart(){if(G.final)return 'The season is over: settle up and end it.';const p=tripPlan();if(!p)return 'Pick a destination';if(G.ship.fuel<p.fuel)return 'Not enough fuel';if(G.burn=='hard'&&faultFx('hard'))return 'Drive fault: no Hard Burn';if(!G.crew.length)return 'No crew';
+ G.trip={from:G.loc,to:G.dest,total:p.days,done:0,burn:G.burn,threat:p.th,rate:BURN[G.burn].fuel,fired:{}};G.phase='travel';G.st.trips++;
+ if(G.burn=='hard'){G.crew.forEach(c=>addStress(c,1));log('Hard Burn: the crew is pressed into their couches.')}
+ log(`Departed ${G.loc} for ${G.dest}. ${p.days} days, threat ${p.th}.`);G.loc='transit'}
+function heal(c){const lv=c.inj;const cost=60*lv;if(!lv||G.credits<cost)return 'Cannot';G.credits-=cost;c.inj=0;c.dying=0;c.heal=0;return''}
+function shore(){const cost=80*G.crew.length;if(G.credits<cost)return 'Not enough credits';G.credits-=cost;G.crew.forEach(c=>{c.stress=Math.max(0,c.stress-4)});G.day++;log('Shore leave: everyone steadies. Costs a day.');G.st.dec++;dayLife(false);return''}
+function repairHull(n){const c=25*n;if(G.credits<c||G.ship.hull+n>G.ship.hullMax)return 'Cannot';G.credits-=c;G.ship.hull+=n;return''}
+function repairFault(i){const f=G.ship.faults[i];if(!f||G.credits<150)return 'Not enough credits';G.credits-=150;G.ship.faults.splice(i,1);const k=f.sub;G.ship.sub[k]=Math.min(G.ship.subMax[k],G.ship.sub[k]+2);return''}
+function fieldRepair(){const s=G.ship;if(G.fixDay===G.day)return 'Already worked on today';if(s.spares<1)return 'No spares';const dmg=s.hull<s.hullMax||s.faults.length||Object.keys(s.sub).some(k=>s.sub[k]<s.subMax[k]);if(!dmg)return 'Nothing to repair';
+ const m=G.crew.filter(c=>c.inj<2).sort((a,b)=>skillMod(b,'eng')-skillMod(a,'eng'))[0];if(!m)return 'No one fit to work';G.fixDay=G.day;s.spares--;const d=[d6(),d6()],t=d[0]+d[1]+skillMod(m,'eng');
+ if(t>=10&&s.faults.length){const f=s.faults.shift();s.sub[f.sub]=Math.min(s.subMax[f.sub],s.sub[f.sub]+2);log(`${m.name} fixes the ${f.n.toLowerCase()} (${d[0]}+${d[1]}).`,'good')}
+ else if(t>=7){const h=t>=10?4:2;s.hull=Math.min(s.hullMax,s.hull+h);const k=Object.keys(s.sub).find(x=>s.sub[x]<s.subMax[x]);if(k&&t>=10)s.sub[k]=Math.min(s.subMax[k],s.sub[k]+1);log(`${m.name} patches the hull +${h} (${d[0]}+${d[1]}).`,'good')}
+ else log(`${m.name}'s repair attempt fails and wastes the part (${d[0]}+${d[1]}).`,'bad');return''}
+function jury(){const s=G.ship;if(G.fixDay===G.day)return 'Already worked on today';const dmg=s.hull<s.hullMax||s.faults.length;if(!dmg)return 'Nothing to patch';const m=G.crew.filter(c=>c.inj<2).sort((a,b)=>skillMod(b,'eng')-skillMod(a,'eng'))[0];if(!m)return 'No one fit to work';G.fixDay=G.day;
+ const d=[d6(),d6()],t=d[0]+d[1]+skillMod(m,'eng')-2;
+ if(t>=11&&s.faults.length){const f=s.faults.shift();log(`${m.name} jury-rigs a fix for the ${f.n.toLowerCase()} (${d[0]}+${d[1]}).`,'good')}else if(t>=9){s.hull=Math.min(s.hullMax,s.hull+2);log(`${m.name} patches the hull +2 with scrap (${d[0]}+${d[1]}).`,'good')}else log(`${m.name}'s improvised patch does not hold (${d[0]}+${d[1]}).`);return''}
+function cannibalize(k){const s=G.ship;if(!['sens','pdc'].includes(k))return 'Cannot';if(s.sub[k]<2)return 'Nothing left to strip';s.sub[k]-=2;s.spares+=2;log(`You strip parts from the ${k=='sens'?'sensors':'PDC'}: +2 spares, and it works worse until repaired at port.`,'warn');return''}
+function changeBurn(k){const t=G.trip;if(!t||k==t.burn)return '';if(k=='hard'&&faultFx('hard'))return 'Drive fault blocks Hard Burn';const rem=t.total-t.done,rc=rem/BURN[t.burn].days;t.total=t.done+Math.max(1,Math.ceil(rc*BURN[k].days-.01));if(k=='hard')G.crew.forEach(c=>addStress(c,1));t.burn=k;log('Burn changed to '+BURN[k].n+'.');return''}
+function projection(){const t=G.trip;if(!t)return null;const rem=Math.max(0,t.total-t.done),b=BURN[t.burn],rt=RATION[G.ration||'full'];const fuel=rem*b.fuel*fr()*(faultFx('fuel')?1.3:1),food=rem*G.crew.length*.5*rt.f*(faultFx('food')?1.4:1);return{rem,fuel:Math.round(fuel),food:Math.round(food*10)/10,fuelShort:Math.max(0,Math.ceil(fuel-G.ship.fuel)),foodShort:Math.max(0,Math.ceil(food-G.ship.food))}}
+function repairSubs(){let n=0;for(const k in G.ship.sub){const d=G.ship.subMax[k]-G.ship.sub[k];if(d>0){const c=d*20;if(G.credits>=c){G.credits-=c;G.ship.sub[k]=G.ship.subMax[k];n++}}}return n?'':'Nothing to repair'}
+function payLoan(n){n=Math.min(n,G.credits,G.debt);if(n<=0)return;G.credits-=n;G.debt-=n;if(G.debt<=0){G.debt=0}if(G.day<=25&&G.debt<=DEBT0-1500)G.paidInstall=true}
+function advance2(){if((G.advances||0)>=2||G.credits>=300)return 'Not available';G.advances=(G.advances||0)+1;G.credits+=500;G.debt+=700;log('Quill advances you 500 credits. Your debt grows by 700.','warn');return''}
+function upgrade(id){const U=UPG[id],lv=G.up[id]||0;if(!U||lv>=U.max)return 'Maxed';const cost=U.cost*(lv+1);if(G.credits<cost)return 'Not enough credits';G.credits-=cost;G.up[id]=lv+1;const s=G.ship;
+ if(id=='hull'){s.hullMax+=8;s.hull+=8}if(id=='tank')s.fuelMax+=20;if(id=='pdc'){s.subMax.pdc+=2;s.sub.pdc+=2}log('Installed: '+U.n+(U.max>1?' '+(lv+1):'')+'.','good');return''}
+function hire(){if(!G.hire||G.credits<150)return 'Cannot';G.credits-=150;G.crew.push(G.hire);log(G.hire.name+' joins the crew.');G.hire=null}
+function fire(id){const i=G.crew.findIndex(c=>c.id==id);if(i>=0&&G.crew.length>1){log(G.crew[i].name+' leaves the ship.');G.crew.splice(i,1)}}
+function treat(id){const c=G.crew.find(x=>x.id==id);const m=G.crew.filter(x=>x.inj<2).sort((a,b)=>skillMod(b,'med')-skillMod(a,'med'))[0];if(!c||c.inj==0||G.ship.meds<1||!m)return 'Cannot';G.ship.meds--;const d=[d6(),d6()],t=d[0]+d[1]+skillMod(m,'med'),ti=tierOf(t);
+ if(ti>=3){c.inj=Math.max(0,c.inj-(ti==4?2:1));if(c.inj<2)c.dying=0;c.heal=c.inj?6:0;log(`${m.name} treats ${c.name} (${d[0]}+${d[1]}): ${c.inj?'stabilised':'recovered'}.`,'good')}else if(ti==2){if(c.inj==2){c.inj=1;c.dying=0;c.heal=6}log(`${m.name} treats ${c.name} (${d[0]}+${d[1]}): it helps, a little.`)}else log(`${m.name} fails to help ${c.name} (${d[0]}+${d[1]}).`,'bad');return''}
+/* ---------- days ---------- */
+function dayLife(inTransit){const s=G.ship;
+ const rt=RATION[G.ration||'full'];s.food=Math.max(0,s.food-G.crew.length*.5*rt.f*(faultFx('food')?1.4:1));if(rt.s&&s.food>0)G.crew.forEach(c=>{c.stress=clamp(c.stress+rt.s,0,15)});
+ if(s.food<=0){G.crew.forEach(c=>addStress(c,1));if(G.day%2==0)log('Rations out: everyone is starving.','bad')}
+ if(faultFx('str'))G.crew.forEach(c=>addStress(c,1));
+ G.crew.forEach(c=>{if(c.stress>0&&s.food>0&&!G.crew.some(o=>o.stress>=bp(o)))c.stress=Math.max(0,c.stress-.2-(G.up.berth?.25:0));if(c.away>0)c.away--;
+  if(c.inj==1){c.heal-=G.up.doc?2:1;if(c.heal<=0){c.inj=0;log(c.name+' has recovered.','good')}}
+  if(c.inj==2&&G.up.doc&&c.dying<=2){c.inj=1;c.dying=0;c.heal=4;log('The auto-doc stabilises '+c.name+'.','good')}else if(c.inj==2){c.dying--;if(c.dying<=0){G.dead.push(c.name);G.st.dead++;log(c.name+' has died.','bad');G.crew.forEach(o=>{if(o!==c)addStress(o,3)});c._dead=1}}});
+ G.crew=G.crew.filter(c=>!c._dead);
+ if(!G.crew.length&&!G.over){G.over={win:false,why:'crew',text:'Nobody is left aboard. The Kestrel drifts on as a ghost ship.'};G.phase='over';return}
+ s.faults.forEach(f=>{f.age++;if(f.age==4&&rnd()<.6){s.hull=Math.max(1,s.hull-2);log('The '+f.n.toLowerCase()+' is getting worse: hull -2.','bad')}});
+ if(G.day%30==0){const w=G.crew.reduce((a,c)=>a+c.wage,0);if(G.credits>=w){G.credits-=w;log('Monthly wages paid: '+w+' cr.')}else{G.credits=0;G.crew.forEach(c=>addStress(c,3));log('Wages missed. Crew stress rising.','bad')}}
+ if(G.ev&&G.day>=G.ev.until){log('World event over: '+G.ev.e.n+'.');G.ev=null}
+ if(!G.ev&&G.day>=G.evNext){G.ev={e:pick(WORLD),until:G.day+22};G.evNext=G.day+30;log('World event: '+G.ev.e.n+'. '+G.ev.e.d,'warn')}
+ G.st.peak=Math.max(G.st.peak,G.credits);
+ if(G.day>=DEADLINE&&!G.final&&!G.over){G.final=true;log('Day '+DEADLINE+': Quill\'s deadline. Finish this run, settle your debt, then end the season.','warn')}}
+function checkBreaks(){for(const c of G.crew){if(c.stress>=bp(c)&&!c.broke&&c.inj<2){c.broke=1;G.st.breaks++;G.queue.push({key:'break',subject:c});}}}
+/* ---------- travel ---------- */
+function advance(){if(G.phase!='travel'||G.over)return;const t=G.trip,s=G.ship,b=BURN[t.burn];
+ G.day++;t.done++;let rate=b.fuel*fr()*(faultFx('fuel')?1.3:1);s.fuel=Math.max(0,s.fuel-rate);dayLife(true);if(G.over)return;
+ if(G.job&&G.job.ambush&&!t.fired.q&&t.done>=Math.ceil(t.total/2)){t.fired.q=1;G.queue.push({key:G.job.quest==2&&G.job.ambush=='navy'?'q2b':'q2e',q:true})}
+ if(s.fuel<=0&&!t.fired.adrift){t.fired.adrift=1;G.queue.push({key:'adrift'})}
+ else if(rnd()<.38+.1*t.threat+(faultFx('inc')?.06:0)){const pool=Object.keys(INC).filter(k=>INC[k].w&&INC[k].w(G,t)>0);let tot=0;pool.forEach(k=>tot+=INC[k].w(G,t));let r=rnd()*tot,k=pool[0];for(const q of pool){r-=INC[q].w(G,t);if(r<=0){k=q;break}}G.queue.push({key:k})}
+ checkBreaks();
+ if(t.done>=t.total&&!G.queue.length){arrive();return}
+ if(G.queue.length)nextEvent();else if(t.done>=t.total)arrive()}
+function nextEvent(){if(G.over)return;const e=G.queue.shift();if(!e){if(G.phase=='incident'){G.phase=G.trip?'travel':'station'}return}
+ const inc=e.q?QINC[e.key]:INC[e.key];const cs=alive();const s1=e.subject||pick(cs.length?cs:G.crew),s2=pick(G.crew.filter(c=>c!==s1))||s1;
+ const sty=e.key=='break'?(BREAKSTYLE[s1.tr[0]]||''):'';
+ const txt=inc.text.replace(/\{S\}/g,s1.name.split(' ')[0]).replace(/\{T\}/g,s2.name.split(' ')[0]).replace('{STYLE}',sty);
+ G.inc={key:e.key,inc,title:inc.title,text:txt,S:s1,T:s2,ap:inc.ap.filter(a=>!a.req||a.req(G)),res:null,sel:{ap:null,crew:null},arrival:!!e.arrival};G.phase='incident'}
+function bestFor(ap){let c=alive();if(!c.length)c=G.crew.slice();if(!ap.sk)return null;return c.slice().sort((a,b)=>skillMod(b,ap.sk,ap)-skillMod(a,ap.sk,ap))[0]||null}
+function modFor(ap,c){return ap.sk&&c?skillMod(c,ap.sk,ap):0}
+function advisor(){const inc=G.inc;if(!inc)return null;const cs=alive();if(!cs.length)return null;const a=cs.slice().sort((x,y)=>(y.sk.sys+y.sk.neg+y.sk.eng)-(x.sk.sys+x.sk.neg+x.sk.eng))[0];let best=null,bv=-99;const VAL=[-3,-1,.5,1.5,2.5];
+ inc.ap.forEach((ap,i)=>{if(ap.need&&ap.need(G))return;let v;if(!ap.sk){v=ap.risk==0?.4:-.2;}else{const o=odds(modFor(ap,bestFor(ap)));v=o.reduce((s,p,j)=>s+p*VAL[j],0)}
+  if(a.tr.includes('Cautious')&&ap.risk==0)v+=.4;if(a.tr.includes('Reckless')&&ap.risk==2)v+=.4;if(v>bv){bv=v;best=i}});return{who:a,pick:best}}
+function pickAp(i,cid){const inc=G.inc;if(!inc||inc.res)return;const ap=inc.ap[i];if(ap.need&&ap.need(G))return;G.st.dec++;
+ if(!ap.sk){inc.sel={ap:i,crew:null};inc.res={auto:true,ap,text:ap.out.A[0],effs:ap.out.A[1],tier:null};return}
+ const c=G.crew.find(x=>x.id==cid)||bestFor(ap);if(!c)return;inc.sel={ap:i,crew:c.id};rollInc(c,ap,false)}
+function rollInc(c,ap,re){const inc=G.inc,d=[d6(),d6()],mod=skillMod(c,ap.sk,ap),total=d[0]+d[1]+mod,ti=tierOf(total);const o=ap.out[ti];
+ inc.res={ap,crew:c,d,mod,total,tier:ti,text:o[0].replace(/\{S\}/g,inc.S.name.split(' ')[0]),effs:o[1],re:!!re,first:re&&inc.res?inc.res:null};G.st.rolls++;G.st.tiers[ti]++}
+function fateReroll(){const inc=G.inc;if(!inc||!inc.res||inc.res.auto||G.fate<1||inc.res.re)return;G.fate--;G.st.fate++;rollInc(inc.res.crew,inc.res.ap,true);log('Fate point spent.','warn')}
+function resolveInc(){const inc=G.inc;if(!inc||!inc.res)return;const r=inc.res,ctx={actor:r.crew||null,subject:inc.S,sk:r.ap.sk};
+ G.dlog.push(`D${G.day} ${inc.title}: ${r.ap.label}${r.tier!=null?' ['+TIERS[r.tier]+(r.re?', rerolled':'')+']':''}`);
+ applyEffs(r.effs,ctx);log(`${inc.title}: ${r.text}`,r.tier!=null&&r.tier<=1?'bad':r.tier>=3?'good':'');
+ const wasArrival=inc.arrival;G.inc=null;
+ if(inc.key=='break'){inc.S.stress=Math.max(0,bp(inc.S)-3);inc.S.broke=0}
+ if(inc.key=='q1'){G.q.stage=2;}
+ if(inc.key=='q3'){G.q.stage=4;G.q.done=1}
+ if(G.ship.hull<=0){defeat('hull');return}
+ checkBreaks();
+ if(ctx.combat){startCombat(ctx.combat[0],ctx.combat[1]);return}
+ if(G.queue.length){nextEvent();return}
+ if(wasArrival||!G.trip){G.phase='station';genStation();return}
+ if(G.trip&&G.trip.done>=G.trip.total){arrive();return}
+ G.phase='travel'}
+function arrive(){const t=G.trip;G.loc=t.to;G.trip=null;G.dest=null;
+ if(G.job&&G.job.to==G.loc){const j=G.job,late=Math.max(0,G.day-(j.taken+j.days));let pay=j.pay;const full=j.units+(j.lost||0)||1;pay=Math.round(pay*(full>0?(j.units+((j.lost||0)>0&&j.units>0?0:0))/(j.units+(j.lost||0)):1)/10)*10;
+  if(j.units<=0)pay=0;const pen=late?Math.min(.75,late*.2):0;pay=Math.round(pay*(1-pen)/10)*10;G.credits+=pay;G.st.earned+=pay;G.st.delivered++;G.rep[j.fac]+=1;
+  log(`Delivered at ${G.loc}: +${pay} cr${late?` (${late} day${late>1?'s':''} late, -${Math.round(pen*100)}%)`:''}${j.units<(j.units+(j.lost||0))?' (cargo lost reduces the pay)':''}.`,pay>0?'good':'bad');
+  const quest=j.quest;G.job=null;
+  if(quest==1){G.queue.push({key:'q1',q:true,arrival:true})}
+  if(quest==2){G.queue.push({key:'q3',q:true,arrival:true})}}
+ if(G.day>=25&&!G.paidInstall&&!G.installNote){G.installNote=1;if(G.credits>=1500){G.credits-=1500;G.debt-=1500;G.paidInstall=true;log("Quill's collector takes the 1,500 installment.",'warn')}else{G.debt+=750;G.crew.forEach(c=>addStress(c,2));log('You missed the installment. Quill adds 750 to the debt.','bad')}}
+ if(G.queue.length){nextEvent();return}
+ G.phase='station';genStation();checkBreaks();if(G.queue.length)nextEvent()}
+function runDay(){if(G.phase=='travel')advance()}
+/* ---------- combat ---------- */
+function startCombat(kind,ambush){const T=ENEMIES[kind],e=JSON.parse(JSON.stringify(T));e.max=e.hull;e.sub={drive:e.drive,weap:e.weap,sens:e.sens,pdc:e.pdc};e.kind0=kind;G.st.combats++;
+ G.cb={e,range:pick([0,1]),round:1,o:{tdef:'pdc',fire:0,helm:'hold',weapon:'rail',target:'hull',eng:'repair',stance:'aggr'},log:[],over:null,prev:null,pw:0,ph:0,kind};G.phase='combat';
+ G.cb.log.push(`Red alert! ${e.name} at ${RANGE[G.cb.range]} range.`);
+ if(ambush){G.cb.log.push('They got the drop on you.');enemyAttack(true)}checkDefeat()}
+function stationCrew(st){const cs=alive();if(!cs.length)return null;const sk={helm:'pilot',gun:'gun',eng:'eng',cmd:'neg',sys:'sys'}[st];return cs.slice().sort((a,b)=>skillMod(b,sk)-skillMod(a,sk))[0]}
+function fireLv(){const o=G.cb.o,L=WFIRE[o.weapon],am=WAM[o.weapon],have=G.ship[am];let i=Math.min(o.fire||0,L.length-1);while(i>0&&L[i].n>have)i--;return Object.assign({i,am,have,ok:have>=L[i].n},L[i])}
+function combatMods(){const cb=G.cb,o=cb.o,s=G.ship,h=stationCrew('helm'),g=stationCrew('gun'),en=stationCrew('eng');
+ const wk=o.weapon;let atk=g?skillMod(g,'gun'):-3;atk+=WMOD[wk][cb.range];atk+=fireLv().a;atk-=o.tdef=='evade'&&cb.e.torps>0?1:0;atk+=o.stance=='aggr'?1:o.stance=='def'?-1:0;atk+=cb.pw>0?2:0;atk+=o.target!='hull'?-1:0;if(s.sub.sens<=0)atk-=2;atk-=faultFx('atk')?1:0;atk+=G.up.sens||0;if(wk=='pdc'&&s.sub.pdc<=0)atk-=6;if(wk!='pdc'&&s.sub.weap<=0)atk-=6;
+ let hm=h?skillMod(h,'pilot'):-3;if(s.sub.drive<=0)hm-=3;hm+=cb.ph>0?2:0;return{atk,hm,g,h,en}}
+function oddsAtk(){const m=combatMods();return odds(m.atk-G.cb.e.pil)}
+function pdcIntercept(byPlayer,e){const d=d6()+d6();if(byPlayer){const g=stationCrew('gun');const t=d+(g?skillMod(g,'gun'):-2)+(G.ship.sub.pdc<=0?-6:0)-(faultFx('pdc')?2:0)+(G.up.pdc||0);return t>=9}return d+e.pdc+(e.sub.pdc<=0?-6:0)>=9}
+function tdLayer(id){const s=G.ship,cb=G.cb,o=cb.o,e=cb.e,g=stationCrew('gun'),pl=stationCrew('helm'),sy=stationCrew('sys');
+ const sysM=sy?skillMod(sy,'sys'):-2,gM=g?skillMod(g,'gun'):-2,pM=pl?skillMod(pl,'pilot'):-3;
+ if(id=='pdc'||id=='flak'){const n=id=='flak'?3:1;return{id,n,am:'belt',av:s.belt>=n&&s.sub.pdc>0,mod:gM+(G.up.pdc||0)-(faultFx('pdc')?2:0)+(id=='flak'?3:0),T:10,who:g}}
+ if(id=='decoy')return{id,n:1,am:'cm',av:s.cm>=1,mod:sysM+2-(s.sub.sens<=0?3:0)-Math.floor(e.sens/3),T:9,who:sy};
+ if(id=='ecm')return{id,n:0,av:s.sub.sens>0,mod:sysM+2*(G.up.ecm||0)+(G.up.sens||0)-Math.floor(e.sens/2),T:10,who:sy};
+ return{id:'evade',n:0,av:s.sub.drive>0,mod:pM+(o.tdef=='evade'?2:0)+(o.helm=='evade'?2:0)+(cb.ph>0?2:0)+(s.sub.drive>=5?1:0)+[1,0,-2][cb.range],T:13,who:pl}}
+function tdChance(doc){let f=1;for(const id of TCHAIN[doc]){const L=tdLayer(id);if(L.av)f*=1-pAtLeast(L.mod,L.T)}return 1-f}
+function torpDefense(){const L=G.cb.log,s=G.ship,nm=c=>c?c.name.split(' ')[0]:'Nobody';
+ for(const id of TCHAIN[G.cb.o.tdef||'pdc']){const l=tdLayer(id);if(!l.av)continue;if(l.n)s[l.am]-=l.n;const d=d6()+d6(),ok=d+l.mod>=l.T,u=l.n?` (−${l.n} ${l.am=='cm'?'decoy':'belt'}${l.n>1?'s':''})`:'';
+  const T={pdc:[`Your point defense shreds the torpedo${u}.`,`PDC misses the torpedo${u}.`],flak:[`The flak screen swallows the torpedo${u}.`,`The flak cloud is too thin${u}.`],decoy:[`A decoy draws the torpedo off${u}.`,`The torpedo ignores the decoy${u}.`],ecm:[`${nm(l.who)} hacks the seeker and the torpedo goes ballistic.`,`${nm(l.who)} cannot break the torpedo's lock.`],evade:[`${nm(l.who)} throws the Kestrel aside and the torpedo misses.`,`The torpedo tracks the turn.`]}[l.id];
+  L.push(ok?T[0]:T[1]);if(ok)return true}
+ return false}
+function dmgEnemy(dmg,target,note){const e=G.cb.e;if(target=='hull'){e.hull-=dmg}else{e.hull-=Math.ceil(dmg/2);const was=e.sub[target];e.sub[target]=Math.max(0,e.sub[target]-dmg);if(was>0&&e.sub[target]==0)G.cb.log.push(`Their ${TARGN[target].toLowerCase()} is knocked out!`)}}
+function playerAttack(){const cb=G.cb,o=cb.o,e=cb.e,m=combatMods(),wk=o.weapon,L=cb.log,f=fireLv(),s=G.ship;
+ if(!f.ok){L.push(`${WN[wk]}: magazine empty. You have nothing to fire.`);return}
+ s[f.am]-=f.n;const d=[d6(),d6()],t=d[0]+d[1]+m.atk-e.pil,ti=tierOf(t);
+ const nm=`${WN[wk]}${f.n>1?' ('+f.l.toLowerCase()+')':''} vs ${TARGN[o.target]} (${d[0]}+${d[1]}${m.atk-e.pil>=0?'+':''}${m.atk-e.pil})`;
+ let dmg=WDMG[wk]+(wk=='rail'?(G.up.rail||0):0)+f.d;
+ if(wk=='torp'){let live=0;for(let i=0;i<f.n;i++){if(pdcIntercept(false,e))L.push(`One of your torpedoes is shot down by their point defense.`);else live++}
+  if(!live)return;dmg*=live;if(live<f.n&&ti>1)L.push(`${live} of ${f.n} get through.`)}
+ if(ti<=1){L.push(`${nm}: miss.`);return}
+ if(ti==2)dmg=Math.ceil(dmg/2);if(ti==4)dmg*=2;
+ if(ti==4&&o.target!='hull')e.sub[o.target]=Math.max(0,e.sub[o.target]-2);
+ dmgEnemy(dmg,o.target);L.push(`${nm}: ${TIERS[ti]}, ${dmg} damage.`)}
+function enemyAttack(free){const cb=G.cb,e=cb.e,s=G.ship,o=cb.o,L=cb.log;if(e.hull<=0)return;
+ let wk='rail';if(e.torps>0&&cb.range<2&&rnd()<.4)wk='torp';else if(cb.range==2&&rnd()<.5)wk='pdc';
+ if(e.sub.weap<=0&&wk!='pdc'){wk='pdc';}if(e.sub.weap<=0&&e.sub.pdc<=0){L.push('Their weapons are dead.');return}
+ const pil=stationCrew('helm');const def=(o.helm=='evade'&&!free?2:0)+(o.stance=='def'?1:0)-(o.stance=='aggr'?1:0)+(cb.ph>0?2:0)+(pil?Math.floor(Math.max(0,skillMod(pil,'pilot'))/2):0);
+ const d=[d6(),d6()],t=d[0]+d[1]+e.atk+WMOD[wk][cb.range]-def,ti=tierOf(t);
+ if(wk=='torp'){e.torps--;L.push('Torpedo inbound!');if(torpDefense())return;L.push('It gets through.')}
+ let dmg=wk=='torp'?7:wk=='pdc'?2:e.dmg;
+ const nm=`${e.name.split(' ')[0]} ${WN[wk]} (${d[0]}+${d[1]}${t-d[0]-d[1]>=0?'+':''}${t-d[0]-d[1]})`;
+ if(ti<=1){L.push(`${nm}: miss.`);return}if(ti==2)dmg=Math.ceil(dmg/2);if(ti==4)dmg*=2;
+ const locs=['hull','hull','hull','drive','weap','sens','pdc','life'];const loc=pick(locs);
+ if(loc=='hull'){s.hull-=dmg;L.push(`${nm}: ${TIERS[ti]}, hull -${dmg}.`)}else{s.hull-=Math.ceil(dmg/2);const was=s.sub[loc];s.sub[loc]=Math.max(0,s.sub[loc]-dmg);L.push(`${nm}: ${TIERS[ti]}, ${loc=='weap'?'weapons':loc=='sens'?'sensors':loc=='pdc'?'PDC':loc=='life'?'life support':'drive'} -${dmg}, hull -${Math.ceil(dmg/2)}.`);
+  if(was>0&&s.sub[loc]==0)L.push(`Your ${loc=='weap'?'weapons':loc=='sens'?'sensors':loc=='pdc'?'PDC':loc=='life'?'life support':'drive'} is knocked out!`);
+  if(rnd()<.6||s.sub[loc]==0){const f=addFault(loc);if(f)L.push('Fault: '+f)}
+  const who={drive:'eng',weap:'gun',pdc:'gun',sens:'sys',life:'med'}[loc];const pc=stationCrew(who=='eng'?'eng':who=='gun'?'gun':'cmd');
+  if(pc&&rnd()<(ti==4?.9:.6)){const r=hurtRoll(pc,{drive:'eng',weap:'gun',pdc:'gun',sens:'sys',life:'med'}[loc]);if(r!='braced')L.push(`${pc.name} is ${r=='hurt'?'hurt':'seriously hurt'}.`)}}
+ if(loc=='hull'&&rnd()<.25){const pc=pick(alive());if(pc){const r=hurtRoll(pc,'eng');if(r!='braced')L.push(`${pc.name} is ${r=='hurt'?'hurt':'seriously hurt'}.`)}}}
+function combatRound(){const cb=G.cb;if(!cb||cb.over)return;const o=cb.o,e=cb.e,s=G.ship,L=cb.log,m=combatMods();G.st.rounds++;G.st.dec++;cb.prev=cb.range;L.push(`— Round ${cb.round} —`);
+ const en=m.en;
+ if(o.eng=='repair'&&en){const d=[d6(),d6()],t=d[0]+d[1]+skillMod(en,'eng');if(t>=8){if(s.faults.length&&s.spares>0){const f=s.faults.shift();s.spares--;s.sub[f.sub]=Math.min(s.subMax[f.sub],s.sub[f.sub]+2);L.push(`${en.name} fixes the ${f.n.toLowerCase()} (${d[0]}+${d[1]}).`)}else if(s.hull<s.hullMax){s.hull=Math.min(s.hullMax,s.hull+3);L.push(`${en.name} patches the hull (+3).`)}else{const k=Object.keys(s.sub).find(x=>s.sub[x]<s.subMax[x]);if(k){s.sub[k]=Math.min(s.subMax[k],s.sub[k]+2);L.push(`${en.name} brings the ${k} back toward spec.`)}}}else L.push(`${en.name}'s repairs do not take (${d[0]}+${d[1]}).`)}
+ cb.pw=0;cb.ph=0;if(o.eng=='pw')cb.pw=1;if(o.eng=='ph')cb.ph=1;
+ if(o.eng=='over'&&en){cb.pw=1;cb.ph=1;const d=[d6(),d6()],t=d[0]+d[1]+skillMod(en,'eng');L.push(`Overload: all stations +2 this round.`);if(t<=6){const f=addFault();s.hull-=2;L.push(`The overload backfires (${d[0]}+${d[1]}): hull -2${f?', fault: '+f:''}.`)}}
+ const m2=combatMods();
+ // command actions
+ if(o.stance=='parley'){const n=stationCrew('cmd'),d=[d6(),d6()],t=d[0]+d[1]+(n?skillMod(n,'neg'):-2)+(e.kind=='raider'?-6:e.kind=='navy'?-1:0),ti=tierOf(t);L.push(`Parley (${d[0]}+${d[1]}): ${TIERS[ti]}.`);
+  if(e.kind=='raider'){L.push('The raiders are not interested in talking.')}
+  else if(ti>=3){const toll=Math.min(G.credits,Math.round(G.credits*.1/10)*10);G.credits-=toll;L.push(`They accept a toll of ${toll} cr and break off.`);endCombat('parley');return}
+  else if(ti==2&&e.kind=='pirate'){const lose=G.job?Math.ceil(G.job.units/2):0;if(G.job){G.job.units-=lose;G.job.lost=(G.job.lost||0)+lose;G.rep[G.job.fac]-=1}L.push(`They take${lose?` ${lose} units of cargo`:' a handful of supplies'} and leave.`);endCombat('parley');return}
+  else L.push('Talks break down. They take a free shot.');enemyAttack(false);cb.round++;postRound();return}
+ if(o.stance=='diseng'){const h=m2.h,p=(h?skillMod(h,'pilot'):-3)+(s.sub.drive<=0?-3:0)+cb.ph*2,d=[d6(),d6()],t=d[0]+d[1]+p,q=d6()+d6()+e.pil+(e.sub.drive<=0?-3:0);L.push(`Disengage: you ${t} vs their ${q}.`);
+  if(s.sub.drive<=0||(cb.range<2&&t<=q)){L.push(cb.range==2?'You are too close to break away.':'They keep up.');enemyAttack(false);cb.round++;postRound();return}
+  if(t>q||(cb.range==0&&t>=q)){s.fuel=Math.max(0,s.fuel-4);addAll(1);L.push('You burn away and break contact. Fuel -4.');endCombat('flee');return}}
+ // helm contest
+ if(o.helm!='hold'&&o.helm!='evade'||e.pref!=cb.range){const pl=d6()+d6()+m2.hm,en2=d6()+d6()+e.pil+(e.sub.drive<=0?-3:0);
+  if(pl>en2){const dir=o.helm=='close'?1:o.helm=='open'?-1:0;if(dir){cb.range=clamp(cb.range+dir,0,2);L.push(`You win the helm contest (${pl}-${en2}) and move to ${RANGE[cb.range]} range.`)}}
+  else if(en2>pl){const dir=e.pref>cb.range?1:e.pref<cb.range?-1:0;if(dir){cb.range=clamp(cb.range+dir,0,2);L.push(`They win the helm contest (${en2}-${pl}) and move to ${RANGE[cb.range]} range.`)}}else L.push('The helm contest is a stalemate.')}
+ playerAttack();
+ if(e.hull<=0){endCombat('win');return}
+ const fl=e.hull<=e.max*.4&&e.flee>0&&rnd()<.55;
+ if(fl){L.push(`${e.name} breaks off and runs.`);endCombat('fled');return}
+ enemyAttack(false);cb.round++;postRound()}
+function addAll(n){G.crew.forEach(c=>addStress(c,n))}
+function postRound(){G.cb.o.helm=G.cb.o.helm=='evade'?'hold':G.cb.o.helm;checkDefeat()}
+function checkDefeat(){if(G.cb&&!G.cb.over&&G.ship.hull<=0)defeat('combat')}
+function endCombat(r){const cb=G.cb,e=cb.e;cb.over=r;G.dlog.push(`D${G.day} Combat vs ${e.name.split(' ')[0]} ${e.name.split(' ')[1]}: ${r} after ${cb.round} rounds`);
+ if(r=='win'){const c=rint(e.loot[0],e.loot[1]);G.credits+=c;G.crew.forEach(x=>{x.stress=Math.max(0,x.stress-1)});cb.log.push(c?`${e.name} destroyed. You salvage ${c} cr.`:`${e.name} destroyed.`);if(e.kind=='navy'){G.rep.Earth-=2;G.rep.Mars-=1}}
+ if(r=='fled'){const c=Math.round(e.loot[1]*.3);cb.log.push('They limp away.')}
+ if(r=='flee'){}
+ if(!G.crew.length){defeat('crew')}
+ checkBreaks()}
+function surrender(){const cb=G.cb;if(!cb||cb.over||cb.e.kind=='raider')return;const e=cb.e,L=cb.log;const early=G.ship.hull>G.ship.hullMax*.6?1:0;const n=stationCrew('cmd'),d=[d6(),d6()],t=d[0]+d[1]+(n?skillMod(n,'neg'):-2)+early,ti=tierOf(t);L.push(`You surrender (${d[0]}+${d[1]}): ${TIERS[ti]}.`);
+ const lost=G.job?G.job.units:0;
+ if(ti>=3){const l=Math.ceil(lost/2);if(G.job){G.job.units-=l;G.job.lost=(G.job.lost||0)+l;G.rep[G.job.fac]-=1}const c=Math.round(G.credits*.15/10)*10;G.credits-=c;L.push(`They take ${l} units and ${c} cr, then leave.`);endCombat('surrender')}
+ else if(ti==2){if(G.job){G.job.lost=(G.job.lost||0)+G.job.units;G.job.units=0;G.rep[G.job.fac]-=1}const c=Math.round(G.credits*.25/10)*10;G.credits-=c;L.push(`They strip your cargo and ${c} cr.`);endCombat('surrender')}
+ else if(ti==1){if(G.job){G.job.lost=(G.job.lost||0)+G.job.units;G.job.units=0}const c=Math.round(G.credits*.5/10)*10;G.credits-=c;AMMO.forEach(k=>G.ship[k]=Math.floor(G.ship[k]/2));L.push(`Cargo, ${c} cr and half your munitions gone.`);endCombat('surrender')}
+ else{defeat('surrender')}}
+function defeat(why){const cb=G.cb;if(cb)cb.over='lost';const d=[d6(),d6()],t=d[0]+d[1]+(why=='surrender'?-1:0),ti=tierOf(t);G.dflee=true;
+ if(ti<=0||(why=='crew')){G.over={win:false,why:'wreck',text:'The Kestrel is destroyed. The wreck tumbles on as a derelict, with a story attached.'};G.phase='over';return}
+ if(ti<=2){G.credits=Math.floor(G.credits*.4);if(G.job){G.job.lost=(G.job.lost||0)+G.job.units;G.job.units=0}const l=G.crew.reduce((a,c)=>c.stress>a.stress?c:a,G.crew[0]);if(G.crew.length>1){G.crew=G.crew.filter(c=>c!==l);log(l.name+' was taken off the ship.','bad')}G.ship.hull=8;AMMO.forEach(k=>G.ship[k]=Math.floor(G.ship[k]/2));log('Captured and stripped. You are towed to port with a skeleton hull.','bad')}
+ else{G.credits=Math.floor(G.credits*.8);if(G.job){G.job.lost=(G.job.lost||0)+G.job.units;G.job.units=0}G.ship.hull=Math.max(4,G.ship.hull);log('Cargo lost, but the ship and crew limp away.','bad')}
+ G.loc=G.trip?G.trip.from:G.loc;G.trip=null;G.day+=3;G.dest=null;G.queue=[];G.cb=G.cb&&G.cb.over=='lost'?G.cb:null;if(G.cb){G.cb.log.push('You are out of the fight. The enemy leaves you adrift.');}if(!G.cb){G.inc=null;G.phase='station';genStation()}}
+function leaveCombat(){const cb=G.cb;if(!cb)return;const lost=cb.over=='lost';G.cb=null;
+ if(G.over){return}
+ if(lost){G.phase='station';G.inc=null;genStation();dayLife(false);return}
+ if(cb.over=='surrender'&&false){}
+ if(G.job&&G.job.units<=0&&G.job.lost>0&&false){}
+ if(cb.over=='flee'||cb.over=='win'||cb.over=='fled'||cb.over=='parley'||cb.over=='surrender'){if(G.queue.length){nextEvent();return}
+  if(G.trip&&G.trip.done>=G.trip.total){arrive();return}G.phase=G.trip?'travel':'station'}}
+function endRun(){if(G.over)return;if(G.debt<=0)G.over={win:true,why:'free',text:'The note is paid. The Kestrel is yours, free and clear.'};else G.over={win:false,why:'repo',text:'Day '+DEADLINE+'. Quill\'s repo crew boards the Kestrel with '+Math.round(G.debt).toLocaleString()+' credits still owed.'};G.phase='over'}
+/* ---------- action dispatcher ---------- */
+function act(a,v,w){if(!G||G.over&&a!='new')return;let msg='';const n=+v;
+ switch(a){
+ case'new':newGame(v?+v:null);break;
+ case'endseason':endRun();break;
+ case'frepair':msg=fieldRepair();break;
+ case'jury':msg=jury();break;
+ case'ration':G.ration=v;log(RATION[v].n+': '+RATION[v].note);break;
+ case'burnmid':msg=changeBurn(v);break;
+ case'cannibal':msg=cannibalize(v);break;
+ case'tab':G.tab=v;break;
+ case'buy':msg=buy(v,+w||1);break;
+ case'job':msg=acceptJob(v);break;
+ case'dropjob':msg=dropJob();break;
+ case'dest':G.dest=v;break;
+ case'burn':G.burn=v;break;
+ case'depart':msg=depart();break;
+ case'heal':{const c=G.crew.find(x=>x.id==n);msg=heal(c);break}
+ case'treat':msg=treat(n);break;
+ case'shore':msg=shore();break;
+ case'rhull':msg=repairHull(n||1);break;
+ case'rfault':msg=repairFault(n);break;
+ case'rsubs':msg=repairSubs();break;
+ case'loan':payLoan(n);break;
+ case'hire':msg=hire();break;
+ case'upg':msg=upgrade(v);break;
+ case'advance':msg=advance2();break;
+ case'fire':fire(n);break;
+ case'day':advance();break;
+ case'ap':pickAp(n,w?+w:null);break;
+ case'crew':if(G.inc&&!G.inc.res)G.inc.sel.crew=n;break;
+ case'fate':fateReroll();break;
+ case'go':resolveInc();break;
+ case'ord':G.cb.o[v]=w;if(v=='weapon')G.cb.o.fire=0;break;case'lvl':G.cb.o.fire=+w;break;
+ case'round':combatRound();break;
+ case'surr':surrender();break;
+ case'leave':leaveCombat();break;
+ }
+ if(G&&G.phase=='station'&&G.st)G.st.peak=Math.max(G.st.peak,G.credits);
+ G.msg=msg;if(typeof render=='function')render();return msg}
+
+/* ---------- UI ---------- */
+const UI={running:0,timer:null,crew:{},logOpen:false,showHelp:true};
+const $=s=>document.querySelector(s);
+const fmt=n=>Math.round(n).toLocaleString();
+const pips=(n,m)=>'●'.repeat(n)+'○'.repeat(Math.max(0,(m||4)-n));
+const THN=['calm','quiet','tense','dangerous','deadly'];
+function meter(v,mx,cls,lab){const p=clamp(v/mx*100,0,100);return`<div class="mt ${cls||''}" title="${lab||''}"><i style="width:${p}%"></i><b>${lab||''}</b></div>`}
+const AS={slug:'slugs',torp:'torps',belt:'belts',cm:'decoys'};
+function oddsBar(o){const c=['dis','fai','mix','suc','cri'];const t=['Disaster','Failure','Mixed','Success','Critical'];
+ const good=Math.round((o[3]+o[4])*100),bad=Math.round((o[0]+o[1])*100);
+ return`<div class="odds"><div class="ob">${o.map((p,i)=>p>0?`<i class="${c[i]}" style="flex:${p}" title="${t[i]} ${Math.round(p*100)}%"></i>`:'').join('')}</div><div class="ol"><span class="g">${good}% success</span><span class="m">${Math.round(o[2]*100)}% mixed</span><span class="bd">${bad}% fail</span></div></div>`}
+function btn(a,v,w,label,cls,dis){return`<button class="b ${cls||''}" data-a="${a}"${v!=null?` data-v="${v}"`:''}${w!=null?` data-w="${w}"`:''}${dis?' disabled':''}>${label}</button>`}
+function dice(d){return`<span class="dice">${d.map(x=>`<i>${x}</i>`).join('')}</span>`}
+function head(){const g=G;return`<header class="top"><div class="t1"><span class="ttl">HARD BURN</span><span class="proto">core loop prototype</span></div><div class="t2"><span>Day <b>${g.day}</b>/${DEADLINE}</span><span class="cr">${fmt(g.credits)} cr</span><span class="debt">Debt <b>${fmt(g.debt)}</b></span><span class="fate" title="Fate points reroll one bad roll">Fate ${'◆'.repeat(g.fate)||'–'}</span></div>${g.ev?`<div class="ev">⚠ ${g.ev.e.n}: ${g.ev.e.d}</div>`:''}</header>`}
+function statusHTML(){const g=G,s=g.ship,h=hold();
+ const subs=['drive','weap','sens','pdc','life'],sn={drive:'Drive',weap:'Weapons',sens:'Sensors',pdc:'PDC',life:'Life sup.'};
+ return`<section class="card status"><h3>${s.name}</h3><div class="grid2">${meter(s.hull,s.hullMax,s.hull/s.hullMax<.35?'bad':'',`Hull ${Math.ceil(s.hull)}/${s.hullMax}`)}${meter(s.fuel,s.fuelMax,s.fuel<12?'bad':'',`Fuel ${Math.round(s.fuel)}/${s.fuelMax}`)}${meter(s.food,40,s.food<8?'bad':'',`Food ${s.food.toFixed(1)}`)}${meter(h,holdMax(),h>holdMax()*.9?'warn':'',`Hold ${h}/${holdMax()}`)}</div>
+ <div class="res"><span>Rations <b>${RATION[g.ration||'full'].n.split(' ')[0]}</b></span><span>Spares <b>${s.spares}</b></span><span>Meds <b>${s.meds}</b></span><span>Slugs <b>${s.slug}</b></span><span>Torps <b>${s.torp}</b></span><span>Belts <b>${s.belt}</b></span><span>Decoys <b>${s.cm}</b></span>${g.job?`<span>Cargo <b>${g.job.units}</b></span>`:''}${s.item?`<span class="good">Prototype PDC</span>`:''}</div>${(g.phase=='station'||g.phase=='travel')&&(s.hull<s.hullMax||s.faults.length||Object.keys(s.sub).some(k=>s.sub[k]<s.subMax[k]))?`<div class="btns">${btn('frepair',null,null,'Field repair (1 spare)','sm',s.spares<1||g.fixDay===g.day)}<small>${g.fixDay===g.day?'Your engineer already worked today.':'Engineer rolls to patch the hull or fix a fault. Once per day.'}</small></div>`:''}${g.msg&&(g.phase=='travel')?`<p class="warn">${g.msg}</p>`:''}
+ <div class="subs">${subs.map(k=>`<span class="${s.sub[k]<=0?'out':s.sub[k]<s.subMax[k]?'dmg':''}">${sn[k]} ${s.sub[k]}/${s.subMax[k]}</span>`).join('')}</div>
+ ${s.faults.length?`<div class="faults">${s.faults.map(f=>`<span class="fault" title="${f.d}">⚠ ${f.n}${f.age>=3?' (worsening)':''}</span>`).join('')}</div>`:''}
+ <h3 class="mt2">Crew</h3><div class="crew">${g.crew.map(c=>crewRow(c,g.phase=='station'||g.phase=='travel')).join('')}</div></section>`}
+function crewRow(c,act){const t=tierName(c);const sk=SK.filter(k=>c.sk[k]>0).sort((a,b)=>c.sk[b]-c.sk[a]).slice(0,3).map(k=>`${SKS[k]} ${c.sk[k]}`).join(' · ');
+ return`<div class="cr2"><div><b>${c.name}</b><small>${c.tr.join(', ')} · ${c.bg}</small><small>${sk}</small></div><div class="r"><span class="pill ${t}">${t}</span>${c.inj?`<span class="pill inj${c.inj}">${c.inj==2?'Critical':'Hurt'}</span>`:''}<div class="sbar"><i style="width:${clamp(c.stress/bp(c)*100,0,100)}%"></i></div>${act&&c.inj?btn('treat',c.id,null,'Treat (1 med)','sm',G.ship.meds<1):''}</div></div>`}
+function plan(){const g=G,p=tripPlan(),jt=g.job?g.job.to:null;
+ const dests=Object.keys(PLACES).filter(x=>x!=g.loc).map(x=>{const D=dist(g.loc,x),th=threat(g.loc,x);return`<button class="dst ${g.dest==x?'on':''} ${jt==x?'job':''}" data-a="dest" data-v="${x}"><b>${x}</b><small>${D}d · ${pips(th,4)}</small>${jt==x?'<em>contract</em>':''}</button>`}).join('');
+ const burns=Object.keys(BURN).map(k=>{const b=BURN[k];const d=p?Math.max(1,Math.ceil(p.D*b.days)):'–',f=p?Math.round(d*b.fuel*fr()):'–';return`<button class="brn ${g.burn==k?'on':''}" data-a="burn" data-v="${k}"><b>${b.n}</b><small>${d} d · ${f} fuel</small></button>`}).join('');
+ let why='';if(p){if(g.ship.fuel<p.fuel)why='Need '+(p.fuel-Math.floor(g.ship.fuel))+' more fuel';else if(g.burn=='hard'&&faultFx('hard'))why='Drive fault blocks Hard Burn';else if(g.job&&g.dest!=g.job.to)why='';}
+ return`<section class="card"><h3>Plan departure from ${g.loc}</h3><div class="dsts">${dests}</div><div class="brns">${burns}</div><p class="note">${BURN[g.burn].note}</p><div class="brns">${['full','half','quarter'].map(k=>`<button class="brn ${g.ration==k?'on':''}" data-a="ration" data-v="${k}"><b>${RATION[k].n}</b><small>${RATION[k].note}</small></button>`).join('')}</div>${p?`<div class="sum"><span>${p.days} days</span><span>Fuel ${p.fuel} <small>(have ${Math.floor(g.ship.fuel)})</small></span><span>Food ~${p.food} <small>(have ${g.ship.food.toFixed(1)})</small></span><span>Threat ${THN[p.th]}</span></div>${g.job&&g.dest!=g.job.to?`<p class="warn">You hold a contract for ${g.job.to}.</p>`:''}`:'<p class="note">Pick a destination.</p>'}
+ ${btn('depart',null,null,'Depart',' go',!p||!!why)}${why?`<span class="why">${why}</span>`:''}${G.msg?`<p class="warn">${G.msg}</p>`:''}</section>`}
+function stationHTML(){const g=G,tabs=['jobs','shop','crew','ship','refit','loan'];
+ let body='';
+ if(g.tab=='jobs'){body=(g.job?`<div class="job cur"><b>Contract: ${g.job.title||g.job.type+' to '+g.job.to}</b><small>${g.job.units} units · ${fmt(g.job.pay)} cr · due day ${g.job.taken+g.job.days} · for ${g.job.fac}</small>${g.job.quest?'':btn('dropjob',null,null,'Drop contract','ghost')}</div>`:'')+
+  g.jobs.map(j=>`<div class="job ${j.quest?'story':''}"><div><b>${j.quest?'★ ':''}${j.title||j.type+' to '+j.to}</b><small>${g.loc} → ${j.to} · ${j.D} days · ${j.units} units · ${j.fac} · ${pips(j.th,4)} ${THN[j.th]}</small><small>Due within ${j.days} days of pickup</small></div><div class="r"><span class="pay">${fmt(j.pay)}</span>${btn('job',j.id,null,'Accept','',!!g.job||hold()+j.units>holdMax())}</div></div>`).join('')||'<p class="note">No jobs posted.</p>'}
+ else if(g.tab=='shop'){body=['fuel','food','spares','meds','slug','torp','belt','cm'].map(k=>{const nm={fuel:'Fuel',food:'Food',spares:'Spare parts',meds:'Meds',slug:'Rail slugs (railgun)',torp:'Torpedoes',belt:'PDC belts',cm:'Decoys (flares and chaff)'}[k];const have=k=='food'?g.ship.food.toFixed(1):g.ship[k];return`<div class="row"><div><b>${nm}</b><small>${price(k)} cr each · have ${have}${HOLDW[k]?` · takes ${HOLDW[k]} hold`:' · tank'}</small></div><div class="r">${(k=='torp'?[1,2,4]:[1,5,10]).map(q=>btn('buy',k,q,'+'+q,'',!!canBuy(k,q))).join('')}</div></div>`}).join('')+'<p class="note">Hold capacity is shared by cargo, food, spares, meds and ammunition. Torpedoes are heavy and expensive but hit hardest; PDC belts also feed your point defense, so keep some in reserve. Decoys draw torpedoes off. Fuel is in separate tanks.</p>'}
+ else if(g.tab=='crew'){body=g.crew.map(c=>`<div class="row crewrow">${crewRow(c)}<div class="acts">${c.inj?btn('treat',c.id,null,'Treat (1 med)','',g.ship.meds<1)+btn('heal',c.id,null,'Medbay '+60*c.inj,'',g.credits<60*c.inj):''}${btn('fire',c.id,null,'Dismiss','ghost',g.crew.length<2)}</div></div>`).join('')+
+  `<div class="row"><div><b>Shore leave</b><small>Everyone loses 4 stress. Costs ${80*g.crew.length} cr and a day.</small></div>${btn('shore',null,null,'Take it','',g.credits<80*g.crew.length)}</div>`+
+  (g.hire?`<div class="row"><div><b>Hire: ${g.hire.name}</b><small>${g.hire.tr.join(', ')} · ${g.hire.bg} · ${SK.filter(k=>g.hire.sk[k]>0).map(k=>SKS[k]+' '+g.hire.sk[k]).join(' · ')} · wage ${g.hire.wage}/mo</small></div>${btn('hire',null,null,'Hire 150','',g.credits<150||g.crew.length>=6)}</div>`:'<p class="note">No one is looking for work here today.</p>')}
+ else if(g.tab=='ship'){body=`<div class="row"><div><b>Hull repair</b><small>25 cr per point</small></div><div class="r">${btn('rhull',5,null,'+5','',g.ship.hull+5>g.ship.hullMax||g.credits<125)}${btn('rhull',g.ship.hullMax-Math.ceil(g.ship.hull),null,'Full','',g.ship.hull>=g.ship.hullMax||g.credits<25*(g.ship.hullMax-g.ship.hull))}</div></div>
+  <div class="row"><div><b>Restore subsystems</b><small>20 cr per point</small></div>${btn('rsubs',null,null,'Repair all')}</div>`+g.ship.faults.map((f,i)=>`<div class="row"><div><b>${f.n}</b><small>${f.d}</small></div>${btn('rfault',i,null,'Fix 150','',g.credits<150)}</div>`).join('')+(g.ship.faults.length?'':'<p class="note">No faults.</p>')}
+ else if(g.tab=='refit'){body=Object.keys(UPG).map(k=>{const U=UPG[k],lv=g.up[k]||0,cost=U.cost*(lv+1);return`<div class="row"><div><b>${U.n}${U.max>1?` <small>(${lv}/${U.max})</small>`:lv?' <small>(installed)</small>':''}</b><small>${U.d}</small></div>${btn('upg',k,null,lv>=U.max?'Installed':'Install '+fmt(cost),'',lv>=U.max||g.credits<cost)}</div>`}).join('')+'<p class="note">Upgrades stay with the ship for the whole run.</p>'}
+ else{body=`<div class="row"><div><b>Marta Quill</b><small>Owed ${fmt(g.debt)} cr · due day ${DEADLINE}${g.paidInstall?'':' · installment of 1,500 collected on your first dock after day 25'}</small></div></div><div class="row"><div class="r">${btn('loan',500,null,'Pay 500','',g.credits<500||!g.debt)}${btn('loan',1000,null,'Pay 1000','',g.credits<1000||!g.debt)}${btn('loan',g.debt,null,'Pay all','',g.credits<g.debt||!g.debt)}</div></div>
+  <div class="row"><div><b>Desperate? Ask for an advance</b><small>+500 credits now, +700 debt. Only if under 300 cr. ${2-(g.advances||0)} left.</small></div>${btn('advance',null,null,'Ask','warnb',g.credits>=300||(g.advances||0)>=2)}</div>`}
+ const fin=g.final?`<section class="card final"><div class="tag red">Day ${g.day}: final reckoning</div><h2>Settle up with Quill</h2><p class="txt">The deadline has passed. You owe <b>${fmt(g.debt)}</b> and hold <b>${fmt(g.credits)}</b>. Pay what you can, repair and heal if you like, then end the season.</p><div class="btns">${btn('loan',g.debt,null,'Pay all','',g.credits<g.debt||!g.debt)}${btn('loan',Math.min(g.credits,g.debt),null,'Pay everything I have','warnb',!g.debt||!g.credits)}${btn('endseason',null,null,'End the season','go')}</div></section>`:'';
+ return fin+`<section class="card"><h3>${g.loc} <small>(${PLACES[g.loc].f})</small></h3><nav class="tabs">${tabs.map(t=>`<button class="${g.tab==t?'on':''}" data-a="tab" data-v="${t}">${{jobs:'Jobs',shop:'Shop',crew:'Crew',ship:'Ship',refit:'Refit',loan:'Loan'}[t]}</button>`).join('')}</nav><div class="tb">${body}</div></section>`+(g.final?'':plan())}
+function travelHTML(){const g=G,t=g.trip;const pct=clamp(t.done/t.total*100,0,100);
+ return`<section class="card"><h3>${t.from} → ${t.to}</h3>${meter(t.done,t.total,'',`Day ${t.done} of ${t.total} · ${BURN[t.burn].n} · threat ${THN[t.threat]}`)}
+ ${g.job?`<p class="note">Contract: ${g.job.units} units for ${g.job.to}, due day ${g.job.taken+g.job.days}${g.day>g.job.taken+g.job.days?' <b class="warn">(late)</b>':''}.</p>`:''}
+ ${conserveHTML()}<div class="btns">${btn('day',null,null,'Advance 1 day','')}${btn('run',null,null,UI.running?'Pause':'Run ▶',UI.running?'warnb':'go')}</div><p class="note">The clock runs until something needs a decision.</p></section>`}
+function conserveHTML(){const g=G,t=g.trip,pj=projection(),s=g.ship;const sh=[];if(pj.fuelShort)sh.push(`<span class="neg">Fuel short by ${pj.fuelShort}</span>`);if(pj.foodShort)sh.push(`<span class="neg">Food short by ${pj.foodShort}</span>`);
+ const burns=['cruise','hard','eco'].map(k=>{const b=BURN[k],rc=(t.total-t.done)/BURN[t.burn].days,d=Math.max(1,Math.ceil(rc*b.days-.01)),f=Math.round(d*b.fuel*fr());return`<button class="brn ${t.burn==k?'on':''}" data-a="burnmid" data-v="${k}"><b>${b.n}</b><small>${d} d left · ${f} fuel</small></button>`}).join('');
+ const rats=['full','half','quarter'].map(k=>`<button class="brn ${g.ration==k?'on':''}" data-a="ration" data-v="${k}"><b>${RATION[k].n}</b><small>${RATION[k].note}</small></button>`).join('');
+ return`<div class="cons"><h4>Conserve supplies</h4><div class="sum"><span>Still needed: fuel ${pj.fuel} <small>(have ${Math.floor(s.fuel)})</small></span><span>food ${pj.food} <small>(have ${s.food.toFixed(1)})</small></span></div>${sh.length?`<div class="eff">${sh.join('')}</div>`:''}
+ <small>Burn: slower burns save fuel but take more days (more chances for trouble).</small><div class="brns">${burns}</div><small>Rations</small><div class="brns">${rats}</div>
+ <small>Spare parts and repairs</small><div class="btns">${btn('jury',null,null,'Jury-rig (no spare)','sm',g.fixDay===g.day)}${btn('cannibal','sens',null,'Strip sensors for 2 spares','sm',s.sub.sens<2)}${btn('cannibal','pdc',null,'Strip PDC for 2 spares','sm',s.sub.pdc<2)}</div><small>Jury-rig is a weaker patch that costs no parts. Stripped systems stay damaged until repaired at port.</small></div>`}
+function oddsFor(ap,c){return ap.sk&&c?odds(modFor(ap,c)):null}
+function incidentHTML(){const inc=G.inc;if(!inc)return '';const adv=advisor();let h=`<section class="card inc"><div class="tag">${({mech:'Ship trouble',nav:'Navigation',med:'Medical',social:'Crew',enc:'Encounter',econ:'Trade',quest:'Story'})[inc.inc.tag]||'Incident'}</div><h2>${inc.title}</h2><p class="txt">${inc.text}</p>`;
+ if(adv&&adv.pick!=null&&!inc.res){const ap=inc.ap[adv.pick];h+=`<p class="adv"><b>${adv.who.name.split(' ')[0]}</b> <small>(${adv.who.tr[0]})</small>: “I'd ${ap.label.toLowerCase()}.”</p>`}
+ if(!inc.res){h+=inc.ap.map((ap,i)=>{const lock=ap.need?ap.need(G):'';const cs=ap.sk?(alive().length?alive():G.crew):[];const sel=UI.crew[i]!=null&&cs.some(c=>c.id==UI.crew[i])?cs.find(c=>c.id==UI.crew[i]):bestFor(ap);
+  return`<div class="ap ${lock?'lock':''} ${adv&&adv.pick==i?'rec':''}"><div class="aph"><b>${ap.label}</b><span class="rk r${ap.risk}">${['Safe','Bold','Gamble'][ap.risk]}</span>${ap.sk?`<span class="sk">${SKN[ap.sk]}</span>`:'<span class="sk">No roll</span>'}</div>
+  ${ap.sk&&sel?`<div class="chips">${cs.map(c=>`<button class="chip ${c.id==sel.id?'on':''}" data-a="pc" data-v="${i}" data-w="${c.id}">${c.name.split(' ')[0]} <small>${modFor(ap,c)>=0?'+':''}${modFor(ap,c)}</small></button>`).join('')}</div>${oddsBar(oddsFor(ap,sel))}`:`<p class="note">${ap.out.A?ap.out.A[0]:''}</p>`}
+  ${lock?`<span class="why">${lock}</span>`:btn('ap',i,sel?sel.id:null,ap.sk?`Roll with ${sel?sel.name.split(' ')[0]:'—'}`:'Choose','go')}</div>`}).join('')}
+ else{const r=inc.res;const ch=chips(r.effs,{actor:r.crew||null,subject:inc.S,sk:r.ap.sk});
+  h+=`<div class="res2 t${r.tier==null?'a':r.tier}"><div class="rh"><b>${r.ap.label}</b>${r.tier!=null?` ${dice(r.d)} <span class="md">${r.mod>=0?'+':''}${r.mod}</span> = <b>${r.total}</b>`:''}</div>${r.tier!=null?`<div class="tr">${TIERS[r.tier]}${r.re?' <small>(rerolled)</small>':''}</div>`:''}<p>${r.text}</p><div class="eff">${ch.map(c=>`<span class="${/(\+|saved)/.test(c)&&!/stress \+|Injury|Combat|Ambush|fault|Hull -|Fuel -|Food -|Credits -|rep -/i.test(c)?'pos':'neg'}">${c}</span>`).join('')}</div></div>
+  <div class="btns">${r.tier!=null&&r.tier<=2&&G.fate>0&&!r.re?btn('fate',null,null,'Spend a fate point to reroll','warnb'):''}${btn('go',null,null,'Continue','go')}</div>`}
+ return h+'</section>'}
+function mapHTML(cb){const e=cb.e,o=cb.o;const order=[2,1,0],x0=[54,144,244],zw=90,sx=26,cy=44;
+ const cls=m=>m>=1?'zg':m==0?'zn':m>=-2?'za':'zr';
+ const zone=(r)=>x0[order.indexOf(r)]+zw/2;
+ let s=`<svg class="map" viewBox="0 0 360 156" role="img" aria-label="Range map: your ship at left, enemy at ${RANGE[cb.range]} range">`;
+ order.forEach((r,i)=>{s+=`<rect x="${x0[i]}" y="2" width="${zw}" height="78" class="zone ${cb.range==r?'cur':''}"/>`;
+  if(e.pref==r)s+=`<rect x="${x0[i]+2}" y="4" width="${zw-4}" height="74" class="zpref"/>`;
+  s+=`<text x="${x0[i]+zw/2}" y="16" class="zl">${RANGE[r].toUpperCase()}</text>`;
+  if(e.pref==r)s+=`<text x="${x0[i]+zw/2}" y="27" class="zp">enemy prefers</text>`});
+ if(cb.prev!=null&&cb.prev!==cb.range&&!cb.over){s+=`<circle cx="${zone(cb.prev)}" cy="${cy}" r="8" class="ghost"/><path d="M${zone(cb.prev)+(zone(cb.range)>zone(cb.prev)?9:-9)} ${cy}H${zone(cb.range)+(zone(cb.range)>zone(cb.prev)?-12:12)}" class="mv"/>`}
+ s+=`<line x1="${sx+12}" y1="${cy}" x2="${zone(cb.range)-12}" y2="${cy}" class="dl"/>`;
+ s+=`<polygon points="${sx-12},${cy-9} ${sx+12},${cy} ${sx-12},${cy+9} ${sx-6},${cy}" class="you"/><text x="${sx}" y="${cy+24}" class="nm">YOU</text>`;
+ s+=`<g transform="translate(${zone(cb.range)},${cy})"><circle r="10" class="foe"/><circle r="3" class="foe2"/></g><text x="${zone(cb.range)}" y="${cy+26}" class="nm foen">ENEMY</text>`;
+ ['rail','torp','pdc'].forEach((w,j)=>{const y=90+j*22;s+=`<text x="2" y="${y+14}" class="wl">${w=='rail'?'Rail':w=='torp'?'Torp':'PDC'}</text>`;
+  order.forEach((r,i)=>{const m=WMOD[w][r],sel=o.weapon==w;s+=`<rect x="${x0[i]+2}" y="${y}" width="${zw-4}" height="19" class="cell ${cls(m)} ${sel?'sel':''} ${cb.range==r?'now':''}"/><text x="${x0[i]+zw/2}" y="${y+14}" class="cv">${m>0?'+':''}${m}</text>`})});
+ return s+`</svg><p class="note">Attack modifier by weapon at each range. Bright box = current range. Win the helm contest to move; the enemy tries to pull the fight to its preferred range.</p>`}
+function combatHTML(){const cb=G.cb,e=cb.e,s=G.ship,m=combatMods(),o=cb.o;const over=cb.over;
+ const track=RANGE.map((r,i)=>`<div class="band ${cb.range==i?'cur':''} ${e.pref==i?'pref':''}"><span>${r}</span>${cb.range==i?'<b>⇄</b>':''}</div>`).join('');
+ const sbar=(sub,mx,nm)=>`<span class="${sub<=0?'out':sub<mx?'dmg':''}">${nm} ${sub}</span>`;
+ const hdr=`<section class="card cmb"><div class="tag red">Combat · round ${cb.round}</div><h2>${e.name}</h2><div class="grid2">${meter(Math.max(0,e.hull),e.max,'bad',`Enemy hull ${Math.max(0,e.hull)}/${e.max}`)}${meter(Math.max(0,s.hull),s.hullMax,s.hull/s.hullMax<.35?'bad':'good',`Your hull ${Math.max(0,Math.ceil(s.hull))}/${s.hullMax}`)}</div>
+ <div class="subs"><span class="lab">Enemy</span>${sbar(e.sub.drive,e.drive,'Drive')}${sbar(e.sub.weap,e.weap,'Weap')}${sbar(e.sub.sens,e.sens,'Sens')}${sbar(e.sub.pdc,e.pdc,'PDC')}<span class="lab">Enemy likes ${RANGE[e.pref]} range</span></div>
+ ${mapHTML(cb)}`;
+ if(over){const msg={win:'Victory.',fled:'The enemy ran. You hold the field.',flee:'You broke contact.',parley:'The shooting stops.',surrender:'You surrendered.',lost:'You are beaten.'}[over];
+  return hdr+`<div class="log cl">${cb.log.slice(-9).map(x=>`<p>${x}</p>`).join('')}</div><p class="over">${msg}</p><div class="btns">${btn('leave',null,null,'Continue','go')}</div></section>`}
+ const opt=(k,v,lab,sub)=>`<button class="op ${o[k]==v?'on':''}" data-a="ord" data-v="${k}" data-w="${v}">${lab}${sub?`<small>${sub}</small>`:''}</button>`;
+ const nm=(c)=>c?c.name.split(' ')[0]:'nobody';
+ const oa=oddsAtk(),s0=G.ship,fl=fireLv();
+ return hdr+`<div class="orders"><h4>Helm — ${nm(m.h)} <small>${m.hm>=0?'+':''}${m.hm}</small></h4><div class="ops">${opt('helm','close','Close in','toward Close')}${opt('helm','open','Open range','toward Long')}${opt('helm','evade','Evade','+2 defense')}${opt('helm','hold','Hold','')}</div>
+ <h4>Gunnery — ${nm(m.g)}</h4><div class="ops">${['rail','torp','pdc'].map(k=>opt('weapon',k,WN[k],`${WMOD[k][cb.range]>=0?'+':''}${WMOD[k][cb.range]} here · ${s0[WAM[k]]} ${AS[WAM[k]]}`)).join('')}</div>
+ <div class="ops">${WFIRE[o.weapon].map((f,i)=>{const dm=(WDMG[o.weapon]+(o.weapon=='rail'?(G.up.rail||0):0)+f.d)*(o.weapon=='torp'?f.n:1);return`<button class="op ${fl.i==i?'on':''}" ${s0[WAM[o.weapon]]<f.n?'disabled':''} data-a="lvl" data-w="${i}">${f.l}<small>${f.n} ${f.n==1?AS[WAM[o.weapon]].replace(/s$/,''):AS[WAM[o.weapon]]} · ${dm} dmg${f.a?' · +'+f.a+' hit':''}</small></button>`}).join('')}</div>
+ <div class="ops">${['hull','drive','weap','sens'].map(k=>opt('target',k,TARGN[k],k=='hull'?'':'−1, knocks out')).join('')}</div>${oddsBar(oa)}
+${e.torps>0?`<h4>Torpedo defense <small>enemy rack: ${e.torps}</small></h4><div class="ops">${Object.keys(TDOC).map(k=>{const L=tdLayer(k=='flak'?'flak':k);const dis=(k=='flak'&&!L.av)||(k=='decoy'&&!L.av);return`<button class="op ${o.tdef==k?'on':''}" ${dis?'disabled':''} data-a="ord" data-v="tdef" data-w="${k}">${TDOC[k].n}<small>${TDOC[k].s} · stops ~${Math.round(tdChance(k)*100)}%</small></button>`}).join('')}</div>`:''}
+ <h4>Engineering — ${nm(m.en)}</h4><div class="ops">${opt('eng','repair','Damage control','fix / patch')}${opt('eng','pw','Power weapons','+2 attack')}${opt('eng','ph','Power helm','+2 helm, defense')}${opt('eng','over','Overload','+2 all, may backfire')}</div>
+ <h4>Command</h4><div class="ops">${opt('stance','aggr','Aggressive','+1 atk, −1 def')}${opt('stance','def','Defensive','−1 atk, +1 def')}${opt('stance','diseng','Disengage','needs good range')}${e.kind=='raider'?'':opt('stance','parley','Parley','talk, no attack')}</div></div>
+ <div class="btns">${btn('round',null,null,'Fire round','go')}${e.kind=='raider'?'':btn('surr',null,null,'Surrender','warnb')}</div>
+ <div class="log cl">${cb.log.slice(-8).map(x=>`<p>${x}</p>`).join('')}</div></section>`}
+function overHTML(){const g=G,o=g.over,st=g.st;
+ return`<section class="card over2 ${o.win?'win':'lose'}"><div class="tag">${o.win?'Free and clear':'Run over'}</div><h2>${o.win?'You paid off the Kestrel':'The company ends here'}</h2><p class="txt">${o.text}</p>
+ <div class="sum2"><span>Days <b>${g.day}</b></span><span>Jobs delivered <b>${st.delivered}</b></span><span>Earned <b>${fmt(st.earned)}</b></span><span>Debt left <b>${fmt(g.debt)}</b></span><span>Decisions <b>${st.dec}</b></span><span>Rolls <b>${st.rolls}</b> <small>(${st.tiers.map((n,i)=>TIERS[i][0]+n).join(' ')})</small></span><span>Fate used <b>${st.fate}</b></span><span>Fights <b>${st.combats}</b> · ${st.rounds} rounds</span><span>Injuries <b>${st.hurt}</b> · deaths <b>${st.dead}</b></span><span>Breakdowns <b>${st.breaks}</b></span><span>Story <b>${g.q.done?'finished':g.q.stage>0?'in progress':'untouched'}</b></span></div>
+ <p class="note">Rep: ${FACT.map(f=>f+' '+(g.rep[f]>0?'+':'')+g.rep[f]).join(' · ')}</p>
+ ${g.dead.length?`<p class="note">Lost: ${g.dead.join(', ')}</p>`:''}
+ <h4>What happened at the end</h4><div class="log cl">${g.log.slice(0,8).reverse().map(l=>`<p class="${l.c}"><small>D${l.d}</small> ${l.t}</p>`).join('')}</div><div class="btns">${btn('new',null,null,'New run','go')}</div></section>`+feedbackHTML(true)}
+const FQ=[['fun','Did the decisions feel meaningful? Which one stuck with you?'],['combat','How did combat feel?'],['drag','Where did it drag or confuse you?'],['change','If you could change one thing, what?']];
+UI.fb={rate:0,name:'',a:{},sent:'',open:false};
+function reportText(){const g=G,st=g.st;return`HARD BURN prototype run\nResult: ${g.over?(g.over.win?'Paid off':'Lost: '+g.over.why):'in progress'} on day ${g.day}. Debt left ${fmt(g.debt)}, credits ${fmt(g.credits)}.\nDecisions ${st.dec}, rolls ${st.rolls} (${st.tiers.map((n,i)=>TIERS[i][0]+n).join(' ')}), fate used ${st.fate}, fights ${st.combats} (${st.rounds} rounds), injuries ${st.hurt}, deaths ${st.dead}, breakdowns ${st.breaks}, jobs ${st.delivered}.\nStory: ${g.q.done?'finished':g.q.stage>0?'in progress':'untouched'}.\nDecision log:\n${g.dlog.slice(-40).join('\n')}`}
+function feedbackHTML(auto){if(!auto&&!UI.fb.open)return'';const f=UI.fb;
+ return`<section class="card fb"><h3>Feedback</h3><p class="note">Your answers and a summary of your run go to the designer. No account details are sent.</p>
+ <div class="chips">${[1,2,3,4,5].map(n=>`<button class="chip ${f.rate==n?'on':''}" data-a="fbrate" data-v="${n}">${n}</button>`).join('')}<small>1 = dull, 5 = want to play again</small></div>
+ <label class="fl" for="fbname">Your name (optional)</label><input id="fbname" class="inp" data-fb="name" value="${(f.name||'').replace(/"/g,'&quot;')}" maxlength="40">
+ ${FQ.map(q=>`<label class="fl" for="fb_${q[0]}">${q[1]}</label><textarea id="fb_${q[0]}" class="inp" data-fb="${q[0]}" rows="2" maxlength="600">${(f.a[q[0]]||'').replace(/</g,'&lt;')}</textarea>`).join('')}
+ <div class="btns">${btn('fbsend',null,null,'Send feedback','go',!f.rate&&!Object.values(f.a).some(Boolean))}${btn('fbcopy',null,null,'Copy as text','')}</div>${f.sent?`<p class="warn">${f.sent}</p>`:''}${f.copyText?`<textarea id="fbcopy" class="inp" rows="6" readonly>${f.copyText.replace(/</g,'&lt;')}</textarea>`:''}</section>`}
+function fbPayload(){const f=UI.fb;return{when:Date.now(),rating:f.rate,name:f.name,answers:f.a,report:reportText(),build:'proto-2'}}
+function fbText(){const f=UI.fb,p=fbPayload();return`HARD BURN FEEDBACK${f.name?' from '+f.name:''}\nFun rating: ${f.rate||'–'}/5\n${FQ.map(q=>q[1]+'\n'+(f.a[q[0]]||'–')).join('\n\n')}\n\n${p.report}`}
+function logHTML(){return`<section class="card"><h3>Ship's log</h3><div class="log">${G.log.slice(0,UI.logOpen?60:8).map(l=>`<p class="${l.c}"><small>D${l.d}</small> ${l.t}</p>`).join('')}</div><div class="btns"><button class="b ghost" data-a="logtoggle">${UI.logOpen?'Show less':'Show more'}</button>${btn('fbtoggle',null,null,'Feedback','ghost')}${btn('new',null,null,'Restart run (loses progress)','ghost')}</div></section>`+(G.phase=='over'?'':feedbackHTML(false))}
+function render(){if(!DOM)return;const g=G;let main='';
+ if(g.phase=='over')main=overHTML();else if(g.phase=='combat'&&g.cb)main=combatHTML();else if(g.phase=='incident'&&g.inc)main=incidentHTML();else if(g.phase=='travel'&&g.trip)main=travelHTML();else main=stationHTML();
+ if(UI.showHelp&&g.day==1&&g.phase=='station')main=`<section class="card help"><h3>How this works</h3><p>You owe Marta Quill <b>6,500 credits by day 50</b>. Take contracts, stock the ship, and fly. Every roll is 2d6 plus skill; odds are shown before you commit. Hard Burn saves days and risks people. When something happens, you decide how to respond and who does it.</p>${btn('helpx',null,null,'Got it','go')}</section>`+main;
+ $('#app').innerHTML=head()+`<main>${main}</main>`+(g.phase=='combat'||g.phase=='incident'?'':'')+statusHTML()+logHTML();
+ if(UI.scroll){window.scrollTo({top:0});UI.scroll=0}}
+if(DOM){document.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset.fb;if(!k)return;if(k=='name')UI.fb.name=e.target.value;else UI.fb.a[k]=e.target.value});
+ (async()=>{try{if(window.claude&&claude.use)UI.db=await claude.use('db')}catch(e){}})();
+ document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const a=b.dataset.a,v=b.dataset.v,w=b.dataset.w;
+ if(a=='pc'){UI.crew[+v]=+w;render();return}
+ if(a=='run'){if(UI.running){clearInterval(UI.timer);UI.running=0;render()}else{UI.running=1;UI.timer=setInterval(()=>{if(G.phase!='travel'){clearInterval(UI.timer);UI.running=0;render();return}act('day')},420);render()}return}
+ if(a=='fbrate'){UI.fb.rate=+v;render();return}
+ if(a=='fbtoggle'){UI.fb.open=!UI.fb.open;render();return}
+ if(a=='fbcopy'){const t=fbText();let ok=false;try{navigator.clipboard.writeText(t).then(()=>{UI.fb.sent='Copied. Paste it into a message to the designer.';render()},()=>{UI.fb.copyText=t;UI.fb.sent='Copy was blocked. Select the text below and copy it.';render()});ok=true}catch(e){}if(!ok){UI.fb.copyText=t;UI.fb.sent='Select the text below and copy it.';render()}return}
+ if(a=='fbsend'){(async()=>{UI.fb.sent='Sending…';render();try{if(!UI.db)throw new Error('db');await UI.db.collection('feedback').add(fbPayload());UI.fb.sent='Sent. Thank you!'}catch(e){UI.fb.copyText=fbText();UI.fb.sent='Could not send from here. Use Copy as text and send it directly.'}render()})();return}
+ if(a=='helpx'){UI.showHelp=false;render();return}
+ if(a=='logtoggle'){UI.logOpen=!UI.logOpen;render();return}
+ if(a=='ap'||a=='go'||a=='round'||a=='leave'||a=='depart'||a=='new'||a=='fate')UI.scroll=a!='fate'&&a!='round'&&a!='ap';
+ if(UI.running&&G.phase!='travel'){clearInterval(UI.timer);UI.running=0}
+ act(a,v,w)});
+ newGame();render()}
+if(typeof globalThis!=='undefined'&&!DOM)globalThis.HB={act,newGame,get G(){return G}};
+
+</script>
