@@ -52,7 +52,7 @@ An incident gives you a few approaches, usually **Safe**, **Bold**, or **Gamble*
 - **Rations** (full, half, quarter) trade food for morale.
 - **Field repair** costs 1 spare and can be done once per day, in port or in flight.
 - **Cannibalize** and **jury-rig** options are available when you are desperate.
-- **Refit tab** (stations only): armor plating, fuel tanks, cargo bay, drive tuning, railgun capacitors, a second PDC, sensor refit, ECM suite, auto-doc, better berths. Upgrades last for the whole run.
+- **Refit tab** (stations only): armor plating, fuel tanks, cargo bay, drive tuning, railgun capacitors, sensor refit, ECM suite, auto-doc, better berths. Upgrades last for the whole run.
 
 ## Combat
 
@@ -76,7 +76,11 @@ The enemy is not just at a range. It is also at a **bearing**: one of six sector
 - **Turning.** Heading orders turn the ship so the enemy lands in a better sector. It costs your helm action that round. A good pilot turns farther.
 - **The enemy moves too.** It tries to slide to a sector where your guns are thin.
 - **Hits land on the side they come from.** Damage to your weapons knocks out specific mounts, and the log names them.
-- **Refits.** An aft PDC mount closes the stern gap. A railgun turret widens the railgun arc to five sectors at -1 to hit.
+- **Hardpoints.** The Kestrel has five weapon hardpoints, each with a size and a facing. In the Refit tab you can swap what is fitted to each one, and half of the old mount's price is refunded. Bigger mounts need bigger hardpoints, so some will never fit the Kestrel:
+  - **Railguns:** fixed (3-sector arc, cheap), light turret (5 sectors, -1 to hit, medium hardpoint), heavy turret (5 sectors, +2 damage, large hardpoint), and spinal (bow only, +3 damage, large axial hardpoint).
+  - **Torpedo tubes:** fixed forward tubes, or an all-round launcher that fires into any sector (medium hardpoint).
+  - **PDCs:** one kind, fits any hardpoint. Its ready arc is centered on the hardpoint's facing.
+  - The aft hardpoint starts empty. A PDC there closes the stern gap, but you could fit a launcher there instead.
 
 ### Munitions
 

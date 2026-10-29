@@ -89,6 +89,9 @@ small{color:var(--mut);font-size:12px}
 .mnt{display:flex;flex-direction:column;gap:4px;padding:8px 0}.mrow{display:flex;justify-content:space-between;gap:8px;font-size:13px}.mrow small{color:var(--mut)}.mrow.dn small,.mrow.dn span{color:var(--red)}
 
 .px{fill:#4a3a16}
+
+.hp{display:flex;flex-direction:column;gap:6px;padding:4px 0 10px;border-bottom:1px solid var(--line);margin-bottom:8px}.hrow,.hopt{display:flex;justify-content:space-between;align-items:center;gap:10px}.hrow small,.hopt small{display:block;color:var(--mut);font-size:12px}
+.hopts{display:flex;flex-direction:column;gap:6px;padding:6px 0 6px 10px;border-left:2px solid var(--line)}.hopt.no b{color:var(--mut)}
 </style>
 <div id="app"></div>
 <script>
@@ -119,7 +122,7 @@ const HOLDW={food:.25,spares:1,meds:.5,slug:.2,torp:1.5,belt:.1,cm:.3};
 const AMMO=['slug','torp','belt','cm'];const AMN={slug:'Rail slugs',torp:'Torpedoes',belt:'PDC belts',cm:'Decoys'};const WAM={rail:'slug',torp:'torp',pdc:'belt'};
 /* fire levels: n = rounds spent, a = attack bonus, d = extra damage (torpedoes: per-missile count) */
 const WFIRE={rail:[{n:1,l:'Single',a:0,d:0},{n:2,l:'Double tap',a:1,d:2},{n:3,l:'Barrage',a:2,d:4}],torp:[{n:1,l:'One torpedo',a:0,d:0},{n:2,l:'Salvo of two',a:1,d:0}],pdc:[{n:1,l:'Short burst',a:0,d:0},{n:2,l:'Long burst',a:1,d:1},{n:4,l:'Sustained',a:2,d:2}]};
-const HOLD=40,UPG={hull:{n:'Reinforced plating',d:'+8 max hull, repaired on install',cost:600,max:2},tank:{n:'Extended fuel tanks',d:'+20 fuel capacity',cost:400,max:2},hold:{n:'Cargo bay expansion',d:'+8 hold space',cost:700,max:2},drive:{n:'Corrin Drive tuning',d:'−10% fuel use on every burn',cost:900,max:2},rail:{n:'Railgun capacitors',d:'+1 railgun damage',cost:800,max:2},pdc:{n:'Aft PDC mount',d:'Adds a PDC covering the stern and both quarters, closing the gap behind you',cost:700,max:1},sens:{n:'Sensor array refit',d:'+1 to all attack rolls',cost:600,max:1},doc:{n:'Auto-doc bay',d:'Injured heal twice as fast; critical cases stabilize on their own',cost:900,max:1},ecm:{n:'ECM suite',d:'+2 to jamming and hacking incoming torpedoes',cost:700,max:1},turret:{n:'Railgun turret',d:'Railgun arc widens from 3 sectors to 5, at -1 to hit',cost:900,max:1},berth:{n:'Better berths',d:'Crew shed stress faster',cost:600,max:1}},DEADLINE=50,DEBT0=6500;
+const HOLD=40,UPG={hull:{n:'Reinforced plating',d:'+8 max hull, repaired on install',cost:600,max:2},tank:{n:'Extended fuel tanks',d:'+20 fuel capacity',cost:400,max:2},hold:{n:'Cargo bay expansion',d:'+8 hold space',cost:700,max:2},drive:{n:'Corrin Drive tuning',d:'−10% fuel use on every burn',cost:900,max:2},rail:{n:'Railgun capacitors',d:'+1 railgun damage',cost:800,max:2},sens:{n:'Sensor array refit',d:'+1 to all attack rolls',cost:600,max:1},doc:{n:'Auto-doc bay',d:'Injured heal twice as fast; critical cases stabilize on their own',cost:900,max:1},ecm:{n:'ECM suite',d:'+2 to jamming and hacking incoming torpedoes',cost:700,max:1},berth:{n:'Better berths',d:'Crew shed stress faster',cost:600,max:1}},DEADLINE=50,DEBT0=6500;
 const FACT=['Earth','Mars','Belt','Outer'];
 const NAMES=['Ilse Brandt','Tobias Kehl','Marisol Vega','Abe Quill','Noor Haddad','Pavel Orlov','Chidi Mensah','Wren Tallis','Yusuf Amir','Dagny Holm','Sol Reyes','Imani Cole','Karl Ibsen','Mina Park','Rafa Duarte'];
 const TRAITS=['Cautious','Reckless','Calm','Loyal','Paranoid','Ambitious'];
@@ -166,7 +169,7 @@ function eff(tk,ctx,dry){const m=tk.match(/^([A-Za-z]+)(?::([A-Za-z0-9]+))?([+-]
  case'loot':if(!dry){const c=rint(150,450);G.credits+=c;let t='';if(rnd()<.45){s.spares++;t+=' +1 spares'}if(rnd()<.4){s.slug+=6;t+=' +6 rail slugs'}if(rnd()<.3){s.belt+=6;t+=' +6 PDC belts'}if(rnd()<.15){s.torp+=1;t+=' +1 torpedo'}if(rnd()<.25){s.cm+=2;t+=' +2 decoys'}ctx.lootNote=`Salvaged ${c} credits${t}.`;log(ctx.lootNote,'good')}return'Salvage';
  case'combat':case'ambush':if(!dry)ctx.combat=[arg,k=='ambush'];return(k=='ambush'?'Ambushed: ':'Combat: ')+(ENEMIES[arg]?ENEMIES[arg].name:arg);
  case'world':if(!dry){G.ev={e:WORLD[+arg],until:G.day+25};log('World event: '+WORLD[+arg].n,'warn')}return'World event: '+WORLD[+arg].n;
- case'item':if(!dry){G.ship.item=arg;if(arg=='pdc2'){G.ship.sub.pdc+=2;G.ship.subMax.pdc+=2;G.ship.mounts.push({id:'pdcX',t:'pdc',n:'Prototype PDC',arc:[4,5,0,1,2],mask:[],pen:0,dmg:false})}}return'Gained: '+(arg=='pdc2'?'Prototype PDC mount':arg);
+ case'item':if(!dry){G.ship.item=arg;if(arg=='pdc2'){(G.ship.extra=G.ship.extra||[]).push({id:'pdcX',key:'extra',t:'pdc',n:'Prototype PDC',arc:[4,5,0,1,2],mask:[],pen:0,bonus:0});rebuildMounts()}}return'Gained: '+(arg=='pdc2'?'Prototype PDC mount':arg);
  case'discount':if(!dry)G.fuelDiscount=n/100;return'Fuel -'+(n/100*100)+'% (Co-op scrip)';
  case'repair':if(!dry){const f=s.faults.shift();if(f)log('Repaired: '+f.n)}return'Fault repaired';
  }return''}
@@ -263,6 +266,22 @@ const ENEMIES={skiff:{name:'Scav skiff "Rattler"',kind:'pirate',hull:10,drive:3,
 const RANGE=['Long','Medium','Close'];
 const WMOD={rail:[1,1,0],torp:[0,1,-2],pdc:[-4,-1,2]};
 const WDMG={rail:4,torp:8,pdc:2};
+/* mount catalog: a mount fits a hardpoint if the kind matches and the hardpoint is at least the needed size */
+const SZ={S:1,M:2,L:3},SZN={S:'small',M:'medium',L:'large'};
+const MOUNTCAT={
+ rail_fixed:{t:'rail',n:'Fixed railgun',short:'railgun',style:'fixed',need:{kind:'paired',size:'S'},cost:600,bonus:0,pen:0,d:'3-sector arc. Cheap and steady.'},
+ rail_turret:{t:'rail',n:'Light railgun turret',short:'railgun turret',style:'turret',need:{kind:'paired',size:'M'},cost:1500,bonus:0,pen:1,d:'5-sector arc, -1 to hit.'},
+ rail_heavy:{t:'rail',n:'Heavy railgun turret',short:'heavy turret',style:'turret',need:{kind:'paired',size:'L'},cost:3200,bonus:2,pen:0,d:'5-sector arc, +2 damage.'},
+ rail_spinal:{t:'rail',n:'Spinal railgun',short:'spinal railgun',style:'spinal',need:{kind:'axial',size:'L'},cost:2800,bonus:3,pen:0,d:'Bow only, +3 damage.'},
+ tube_fixed:{t:'torp',n:'Fixed torpedo tubes',short:'tubes',style:'fixed',need:{kind:'paired',size:'S'},cost:500,bonus:0,pen:0,d:'3-sector arc.'},
+ tube_vls:{t:'torp',n:'All-round launcher',short:'launcher',style:'all',need:{kind:'paired',size:'M'},cost:1800,bonus:0,pen:0,d:'Fires into any sector.'},
+ pdc:{t:'pdc',n:'PDC turret',short:'PDC',style:'pdc',need:{kind:'paired',size:'S'},cost:700,bonus:0,pen:0,d:'Swivels all round: 3 ready sectors, 1 blind.'}};
+function mountFits(C,sl){return C.need.kind==sl.kind&&SZ[sl.size]>=SZ[C.need.size]}
+function mountGeom(C,c){const w=k=>(c+k+6)%6;
+ if(C.style=='fixed')return{arc:[w(-1),w(0),w(1)],mask:[]};if(C.style=='turret')return{arc:[w(-2),w(-1),w(0),w(1),w(2)],mask:[]};
+ if(C.style=='spinal')return{arc:[w(0)],mask:[]};if(C.style=='all')return{arc:[0,1,2,3,4,5],mask:[]};
+ return{arc:[w(-1),w(0),w(1)],mask:[w(3)]}}
+
 /* anti-torpedo doctrine: first layer tried; remaining free/cheap layers follow automatically */
 const TDOC={pdc:{n:'PDC fire',s:'1 belt per shot'},flak:{n:'Flak screen',s:'3 belts, +3'},decoy:{n:'Decoys',s:'1 decoy'},spin:{n:'Spin to cover',s:'pilot + gunner'},ecm:{n:'Jam / hack',s:'free'},evade:{n:'Hard turn',s:'free, −1 your attack'}};
 const TCHAIN={pdc:['pdc','spin','ecm','evade'],flak:['flak','spin','ecm','evade'],decoy:['decoy','pdc','spin','ecm','evade'],spin:['spin','pdc','ecm','evade'],ecm:['ecm','evade','pdc','spin'],evade:['evade','ecm','pdc','spin']};
@@ -277,11 +296,11 @@ const TARGN={hull:'Hull',drive:'Drive',weap:'Weapons',sens:'Sensors'};
 const holdMax=()=>HOLD+8*((G&&G.up&&G.up.hold)||0),fr=()=>1-.1*((G&&G.up&&G.up.drive)||0);
 function newGame(s){if(s!=null)setSeed(s);CID=1;
  G={day:1,loc:'Ceres',credits:1800,debt:DEBT0,fate:2,phase:'station',tab:'jobs',burn:'cruise',ration:'full',dest:null,
-  ship:{name:'Kestrel',hull:40,hullMax:40,fuel:40,fuelMax:80,food:24,spares:3,meds:2,slug:14,torp:2,belt:16,cm:4,mob:0,mounts:kestrelMounts(),faults:[],sub:{drive:6,weap:6,sens:4,pdc:4,life:4},subMax:{drive:6,weap:6,sens:4,pdc:4,life:4},item:null},
+  ship:{name:'Kestrel',hull:40,hullMax:40,fuel:40,fuelMax:80,food:24,spares:3,meds:2,slug:14,torp:2,belt:16,cm:4,mob:0,mounts:[],extra:[],slots:kestrelSlots(),faults:[],sub:{drive:6,weap:6,sens:4,pdc:4,life:4},subMax:{drive:6,weap:6,sens:4,pdc:4,life:4},item:null},
   crew:[mkCrew('Dana Reyes',{pilot:3,neg:2,gun:1,sys:1},['Cautious'],'Ex-military',120),mkCrew('Femi Okafor',{eng:3,sys:1,pilot:1},['Calm'],'Belter',100),mkCrew('Tamsin Ward',{med:3,sys:2,neg:1},['Loyal'],'Academic',100),mkCrew('Joss Vance',{gun:3,pilot:1,eng:1},['Reckless'],'Smuggler\'s kid',90)],
   up:{},dlog:[],dead:[],rep:{Earth:0,Mars:0,Belt:0,Outer:0},ev:null,evNext:10,job:null,jobs:[],hire:null,trip:null,log:[],q:{stage:0,flags:{}},inc:null,queue:[],cb:null,over:null,paidInstall:false,fuelDiscount:0,
   st:{dec:0,rolls:0,tiers:[0,0,0,0,0],fate:0,combats:0,rounds:0,hurt:0,dead:0,breaks:0,trips:0,peak:1800,delivered:0,earned:0,lastAct:0}};
- G.crew.forEach(c=>{c.stress=0});
+ G.crew.forEach(c=>{c.stress=0});rebuildMounts();
  log('You own the Kestrel, and Marta Quill owns the note. 6,500 credits due by day '+DEADLINE+'; 1,500 minimum by day 25.','warn');
  genStation();return G}
 const price=k=>Math.round(PRICE[k]*(k=='fuel'?(PLACES[G.loc].fuel*(G.ev&&G.ev.e.fuel||1)*(1-G.fuelDiscount)):k=='food'?PLACES[G.loc].food:1));
@@ -407,7 +426,18 @@ function combatMods(){const cb=G.cb,o=cb.o,s=G.ship,h=stationCrew('helm'),g=stat
 function oddsAtk(){const m=combatMods();return odds(m.atk-G.cb.e.pil)}
 function pdcIntercept(byPlayer,e){const d=d6()+d6();if(byPlayer){const g=stationCrew('gun');const t=d+(g?skillMod(g,'gun'):-2)+(G.ship.sub.pdc<=0?-6:0)-(faultFx('pdc')?2:0)+(G.up.pdc||0);return t>=9}return d+e.pdc+(e.sub.pdc<=0?-6:0)>=9}
 /* ---------- bearing, arcs and mounts ---------- */
-function kestrelMounts(){return[{id:'rail',t:'rail',n:'Railgun',arc:[5,0,1],pen:0,dmg:false},{id:'tube',t:'torp',n:'Bow tubes',arc:[5,0,1],pen:0,dmg:false},{id:'pdcP',t:'pdc',n:'Port PDC',arc:[3,4,5],mask:[1],pen:0,dmg:false},{id:'pdcS',t:'pdc',n:'Starboard PDC',arc:[0,1,2],mask:[4],pen:0,dmg:false}]}
+function kestrelSlots(){return[{id:'W1',lab:'Bow',size:'M',kind:'paired',face:0,mount:'rail_fixed'},{id:'W2',lab:'Bow',size:'S',kind:'paired',face:0,mount:'tube_fixed'},{id:'W3',lab:'Port',size:'M',kind:'paired',face:4,mount:'pdc'},{id:'W4',lab:'Starboard',size:'M',kind:'paired',face:1,mount:'pdc'},{id:'W5',lab:'Aft',size:'M',kind:'paired',face:3,mount:null}]}
+function rebuildMounts(){const s=G.ship,old={};(s.mounts||[]).forEach(m=>{old[m.id]=m});const out=[];
+ s.slots.forEach(sl=>{if(!sl.mount)return;const C=MOUNTCAT[sl.mount],g=mountGeom(C,sl.face),pv=old[sl.id];
+  out.push({id:sl.id,key:sl.mount,t:C.t,n:`${sl.lab} ${C.short}`,arc:g.arc,mask:g.mask,pen:C.pen||0,bonus:C.bonus||0,dmg:!!(pv&&pv.key==sl.mount&&pv.dmg)})});
+ (s.extra||[]).forEach(m=>{const pv=old[m.id];out.push(Object.assign({},m,{dmg:!!(pv&&pv.dmg)}))});
+ s.mounts=out;const np=out.filter(m=>m.t=='pdc').length,nw=out.length-np,mp=2*np,mw=3*nw,dp=mp-s.subMax.pdc,dw=mw-s.subMax.weap;
+ s.subMax.pdc=mp;s.subMax.weap=mw;s.sub.pdc=clamp(s.sub.pdc+Math.max(dp,0),0,mp);s.sub.weap=clamp(s.sub.weap+Math.max(dw,0),0,mw)}
+function installMount(slotId,key){const s=G.ship,sl=s.slots.find(x=>x.id==slotId);if(!sl)return 'No such hardpoint';const C=key?MOUNTCAT[key]:null;
+ if(C&&!mountFits(C,sl))return 'That mount does not fit this hardpoint';if((sl.mount||null)==(key||null))return 'Already fitted';
+ const cur=sl.mount?MOUNTCAT[sl.mount]:null,refund=cur?Math.floor(cur.cost/2):0,cost=C?C.cost:0;if(G.credits+refund<cost)return 'Not enough credits';
+ G.credits+=refund-cost;sl.mount=key||null;rebuildMounts();
+ log(C?`Fitted a ${C.n.toLowerCase()} to the ${sl.lab.toLowerCase()} hardpoint${cur?` (${refund} cr back for the old ${cur.short})`:''}.`:`Stripped the ${sl.lab.toLowerCase()} ${cur.short} (${refund} cr back).`,'good');return ''}
 const ename=e=>(e.name.match(/"([^"]+)"/)||[0,e.name])[1];
 /* mounts go down and come back with the subsystem that powers them: weap -> railgun and tubes, pdc -> PDCs */
 function syncMounts(cls,hit){const s=G.ship,M=s.mounts.filter(m=>cls=='pdc'?m.t=='pdc':m.t!='pdc'),N=M.length,lost=[];if(!N)return lost;
@@ -417,7 +447,9 @@ function syncMounts(cls,hit){const s=G.ship,M=s.mounts.filter(m=>cls=='pdc'?m.t=
  return lost}
 function live(t){syncMounts(t=='pdc'?'pdc':'weap');return G.ship.mounts.filter(m=>m.t==t&&!m.dmg)}
 function reach(m,sec){if(m.arc.includes(sec))return 0;if(m.t=='pdc'&&!(m.mask||[]).includes(sec))return 2;return null}
-function armFor(wk,sec){const sc=sec==null?G.cb.bear:sec,ms=live(wk),cov=ms.filter(m=>reach(m,sc)!=null);return{ms,cov,ok:cov.length>0,pen:cov.length?Math.min(...cov.map(m=>(reach(m,sc)||0)+(m.pen||0))):0}}
+function armFor(wk,sec){const sc=sec==null?G.cb.bear:sec,ms=live(wk),cov=ms.filter(m=>reach(m,sc)!=null);let best=null;
+ cov.forEach(m=>{const p=(reach(m,sc)||0)+(m.pen||0);if(!best||p<best.p||(p==best.p&&(m.bonus||0)>(best.m.bonus||0)))best={m,p}});
+ return{ms,cov,ok:cov.length>0,pen:best?best.p:0,bonus:best?best.m.bonus||0:0,best:best?best.m:null}}
 function extCount(t,sec){return live(t).filter(m=>reach(m,sec)==2).length}
 function covCount(t,sec){return live(t).filter(m=>m.arc.includes(sec)).length}
 const SEC6=[0,1,2,3,4,5];
@@ -486,7 +518,7 @@ function playerAttack(){const cb=G.cb,o=cb.o,e=cb.e,m=combatMods(),wk=o.weapon,L
  {const arm=armFor(wk);if(!arm.ok){L.push(arm.ms.length?`Nothing bears: no working ${WN[wk].toLowerCase()} covers the ${SECN[cb.bear].toLowerCase()}.`:`Your ${WN[wk].toLowerCase()} is out of action.`);return}}
  s[f.am]-=f.n;const d=[d6(),d6()],t=d[0]+d[1]+m.atk-e.pil,ti=tierOf(t);cb.fxOut={w:wk,hit:ti>1};
  const nm=`${WN[wk]}${f.n>1?' ('+f.l.toLowerCase()+')':''} vs ${TARGN[o.target]} (${d[0]}+${d[1]}${m.atk-e.pil>=0?'+':''}${m.atk-e.pil})`;
- let dmg=WDMG[wk]+(wk=='rail'?(G.up.rail||0):0)+f.d;
+ let dmg=WDMG[wk]+(wk=='rail'?(G.up.rail||0):0)+f.d+(wk=='rail'?armFor(wk).bonus:0);
  if(wk=='torp'){let thru=0;for(let i=0;i<f.n;i++){if(pdcIntercept(false,e))L.push(`One of your torpedoes is shot down by their point defense.`);else thru++}
   if(!thru)return;dmg*=thru;if(thru<f.n&&ti>1)L.push(`${thru} of ${f.n} get through.`)}
  if(ti<=1){L.push(`${nm}: miss.`);return}
@@ -588,7 +620,7 @@ function act(a,v,w){if(!G||G.over&&a!='new')return;let msg='';const n=+v;
  case'rsubs':msg=repairSubs();break;
  case'loan':payLoan(n);break;
  case'hire':msg=hire();break;
- case'upg':msg=upgrade(v);break;
+ case'upg':msg=upgrade(v);break;case'mount':msg=installMount(v,w=='none'?null:w);break;
  case'advance':msg=advance2();break;
  case'fire':fire(n);break;
  case'day':advance();break;
@@ -643,7 +675,7 @@ function stationHTML(){const g=G,tabs=['jobs','shop','crew','ship','refit','loan
   (g.hire?`<div class="row"><div><b>Hire: ${g.hire.name}</b><small>${g.hire.tr.join(', ')} · ${g.hire.bg} · ${SK.filter(k=>g.hire.sk[k]>0).map(k=>SKS[k]+' '+g.hire.sk[k]).join(' · ')} · wage ${g.hire.wage}/mo</small></div>${btn('hire',null,null,'Hire 150','',g.credits<150||g.crew.length>=6)}</div>`:'<p class="note">No one is looking for work here today.</p>')}
  else if(g.tab=='ship'){body=`<div class="mnt"><b>Weapons and arcs</b>${mountsHTML()}</div><div class="row"><div><b>Hull repair</b><small>25 cr per point</small></div><div class="r">${btn('rhull',5,null,'+5','',g.ship.hull+5>g.ship.hullMax||g.credits<125)}${btn('rhull',g.ship.hullMax-Math.ceil(g.ship.hull),null,'Full','',g.ship.hull>=g.ship.hullMax||g.credits<25*(g.ship.hullMax-g.ship.hull))}</div></div>
   <div class="row"><div><b>Restore subsystems</b><small>20 cr per point</small></div>${btn('rsubs',null,null,'Repair all')}</div>`+g.ship.faults.map((f,i)=>`<div class="row"><div><b>${f.n}</b><small>${f.d}</small></div>${btn('rfault',i,null,'Fix 150','',g.credits<150)}</div>`).join('')+(g.ship.faults.length?'':'<p class="note">No faults.</p>')}
- else if(g.tab=='refit'){body=Object.keys(UPG).map(k=>{const U=UPG[k],lv=g.up[k]||0,cost=U.cost*(lv+1);return`<div class="row"><div><b>${U.n}${U.max>1?` <small>(${lv}/${U.max})</small>`:lv?' <small>(installed)</small>':''}</b><small>${U.d}</small></div>${btn('upg',k,null,lv>=U.max?'Installed':'Install '+fmt(cost),'',lv>=U.max||g.credits<cost)}</div>`}).join('')+'<p class="note">Upgrades stay with the ship for the whole run.</p>'}
+ else if(g.tab=='refit'){body=hardpointsHTML()+Object.keys(UPG).map(k=>{const U=UPG[k],lv=g.up[k]||0,cost=U.cost*(lv+1);return`<div class="row"><div><b>${U.n}${U.max>1?` <small>(${lv}/${U.max})</small>`:lv?' <small>(installed)</small>':''}</b><small>${U.d}</small></div>${btn('upg',k,null,lv>=U.max?'Installed':'Install '+fmt(cost),'',lv>=U.max||g.credits<cost)}</div>`}).join('')+'<p class="note">Upgrades stay with the ship for the whole run.</p>'}
  else{body=`<div class="row"><div><b>Marta Quill</b><small>Owed ${fmt(g.debt)} cr · due day ${DEADLINE}${g.paidInstall?'':' · installment of 1,500 collected on your first dock after day 25'}</small></div></div><div class="row"><div class="r">${btn('loan',500,null,'Pay 500','',g.credits<500||!g.debt)}${btn('loan',1000,null,'Pay 1000','',g.credits<1000||!g.debt)}${btn('loan',g.debt,null,'Pay all','',g.credits<g.debt||!g.debt)}</div></div>
   <div class="row"><div><b>Desperate? Ask for an advance</b><small>+500 credits now, +700 debt. Only if under 300 cr. ${2-(g.advances||0)} left.</small></div>${btn('advance',null,null,'Ask','warnb',g.credits>=300||(g.advances||0)>=2)}</div>`}
  const fin=g.final?`<section class="card final"><div class="tag red">Day ${g.day}: final reckoning</div><h2>Settle up with Quill</h2><p class="txt">The deadline has passed. You owe <b>${fmt(g.debt)}</b> and hold <b>${fmt(g.credits)}</b>. Pay what you can, repair and heal if you like, then end the season.</p><div class="btns">${btn('loan',g.debt,null,'Pay all','',g.credits<g.debt||!g.debt)}${btn('loan',Math.min(g.credits,g.debt),null,'Pay everything I have','warnb',!g.debt||!g.credits)}${btn('endseason',null,null,'End the season','go')}</div></section>`:'';
@@ -689,6 +721,11 @@ function scopeHTML(cb){const e=cb.e,o=cb.o,C=160,P=(a,r)=>{const t=(a-90)*Math.P
  const cls=m=>m>=1?'zg':m==0?'zn':m>=-2?'za':'zr';
  const tbl=`<table class="wt"><tr><th></th>${[2,1,0].map(r=>`<th class="${cb.range==r?'now':''}">${RANGE[r]}</th>`).join('')}<th>Arc</th></tr>${['rail','torp','pdc'].map(w=>{const ar=armFor(w);const secs=SEC6.filter(x=>armFor(w,x).ok);return`<tr class="${o.weapon==w?'sel':''}"><td>${w=='rail'?'Rail':w=='torp'?'Torp':'PDC'}</td>${[2,1,0].map(r=>{const m=WMOD[w][r];return`<td class="${cls(m)} ${cb.range==r?'now':''}">${m>0?'+':''}${m}</td>`}).join('')}<td class="${ar.ok?'bears':'nobears'}">${ar.ms.length?(ar.ok?'bears'+(ar.pen?' −'+ar.pen:''):'no arc'):'down'}</td></tr>`}).join('')}</table>`;
  return s+tbl+`<p class="note">The enemy is at your <b>${SECN[cb.bear].toLowerCase()}</b>, ${RANGE[cb.range].toLowerCase()} range. Green shading is the arc of the selected weapon. The outer band counts working PDCs with a ready arc on each sector (~ means only a slow swing reaches it, ✕ means a blind spot). Dashed ring is the range the enemy prefers.</p>`}
+function hardpointsHTML(){const g=G,s=g.ship;
+ return`<div class="hp"><b>Hardpoints</b><small class="note">Each hardpoint takes any mount that fits its size. Swapping refunds half of the old mount's price.</small>`+s.slots.map(sl=>{const cur=sl.mount?MOUNTCAT[sl.mount]:null,open=UI.slot==sl.id,refund=cur?Math.floor(cur.cost/2):0;
+  const opts=open?`<div class="hopts">${Object.keys(MOUNTCAT).map(k=>{const C=MOUNTCAT[k],fit=mountFits(C,sl),same=sl.mount==k,why=!fit?`needs ${C.need.kind=='axial'?'an axial ':'a '}${SZN[C.need.size]}${C.need.kind=='axial'?'':' or larger'} hardpoint`:'',cost=C.cost-refund;
+   return`<div class="hopt ${fit?'':'no'}"><div><b>${C.n}</b><small>${C.d} ${fit?'':'· '+why}</small></div>${btn('mount',sl.id,k,same?'Fitted':(cost>0?'Fit '+fmt(cost):'Fit (+'+fmt(-cost)+')'),'',!fit||same||g.credits<cost)}</div>`}).join('')}${cur?`<div class="hopt"><div><b>Strip it</b><small>Leave the hardpoint empty and get ${fmt(refund)} cr back.</small></div>${btn('mount',sl.id,'none','Strip','warnb')}</div>`:''}</div>`:'';
+  return`<div class="hrow"><div><b>${sl.lab} hardpoint</b><small>${SZN[sl.size]} · faces ${SECN[sl.face].toLowerCase()} · ${cur?cur.n:'empty'}</small></div>${btn('slotopen',sl.id,null,open?'Close':'Change','sm')}</div>${opts}`}).join('')+`</div>`}
 function mountsHTML(){live('pdc');live('rail');return G.ship.mounts.map(m=>`<div class="mrow ${m.dmg?'dn':''}"><span>${m.n}</span><small>${m.t=='pdc'?'ready ':''}${m.arc.map(i=>SECS[i]).join(' · ')}${m.t=='pdc'?(m.mask&&m.mask.length?` · swivels, blind ${m.mask.map(i=>SECS[i]).join(' · ')}`:' · swivels all round'):''}${m.pen?` · −${m.pen} hit`:''}${m.dmg?' · KNOCKED OUT':''}</small></div>`).join('')}
 function combatHTML(){const cb=G.cb,e=cb.e,s=G.ship,m=combatMods(),o=cb.o;const over=cb.over;
  const track=RANGE.map((r,i)=>`<div class="band ${cb.range==i?'cur':''} ${e.pref==i?'pref':''}"><span>${r}</span>${cb.range==i?'<b>⇄</b>':''}</div>`).join('');
@@ -704,7 +741,7 @@ function combatHTML(){const cb=G.cb,e=cb.e,s=G.ship,m=combatMods(),o=cb.o;const 
  return hdr+`<div class="orders"><h4>Helm — ${nm(m.h)} <small>${m.hm>=0?'+':''}${m.hm}</small></h4><div class="ops">${opt('helm','close','Close in','toward Close')}${opt('helm','open','Open range','toward Long')}${opt('helm','evade','Evade','+2 defense')}${opt('helm','hold','Hold','keep station')}</div>
  <div class="ops">${[['face','Face enemy'],['guns','Bring guns to bear'],['pdc','Cover with PDCs'],['away','Turn away']].map(([k,l])=>{const d=headTarget(k),tot=turnOdds(),pr=Math.round((1-tot[0]-tot[1])*100);return opt('head',k,l,d==cb.bear?'already there':`to ${SECS[d].toLowerCase()} · ${pr}% turn`)}).join('')}</div>
  <h4>Gunnery — ${nm(m.g)}</h4><div class="ops">${['rail','torp','pdc'].map(k=>opt('weapon',k,WN[k],`${WMOD[k][cb.range]>=0?'+':''}${WMOD[k][cb.range]} here · ${s0[WAM[k]]} ${AS[WAM[k]]}${armFor(k).ok?'':' · NO ARC'}`)).join('')}</div>
- <div class="ops">${WFIRE[o.weapon].map((f,i)=>{const dm=(WDMG[o.weapon]+(o.weapon=='rail'?(G.up.rail||0):0)+f.d)*(o.weapon=='torp'?f.n:1);return`<button class="op ${fl.i==i?'on':''}" ${s0[WAM[o.weapon]]<f.n?'disabled':''} data-a="lvl" data-w="${i}">${f.l}<small>${f.n} ${f.n==1?AS[WAM[o.weapon]].replace(/s$/,''):AS[WAM[o.weapon]]} · ${dm} dmg${f.a?' · +'+f.a+' hit':''}</small></button>`}).join('')}</div>
+ <div class="ops">${WFIRE[o.weapon].map((f,i)=>{const dm=(WDMG[o.weapon]+(o.weapon=='rail'?(G.up.rail||0)+armFor('rail').bonus:0)+f.d)*(o.weapon=='torp'?f.n:1);return`<button class="op ${fl.i==i?'on':''}" ${s0[WAM[o.weapon]]<f.n?'disabled':''} data-a="lvl" data-w="${i}">${f.l}<small>${f.n} ${f.n==1?AS[WAM[o.weapon]].replace(/s$/,''):AS[WAM[o.weapon]]} · ${dm} dmg${f.a?' · +'+f.a+' hit':''}</small></button>`}).join('')}</div>
  <div class="ops">${['hull','drive','weap','sens'].map(k=>opt('target',k,TARGN[k],k=='hull'?'':'−1, knocks out')).join('')}</div>${oddsBar(oa)}
 ${e.torps>0?`<h4>Torpedo defense <small>enemy rack: ${e.torps}</small></h4><div class="ops">${Object.keys(TDOC).map(k=>{const L=tdLayer(k,null,k);const dis=(k=='flak'||k=='decoy'||k=='spin')&&!L.av;return`<button class="op ${o.tdef==k?'on':''}" ${dis?'disabled':''} data-a="ord" data-v="tdef" data-w="${k}">${TDOC[k].n}<small>${TDOC[k].s} · stops ~${Math.round(tdChance(k)*100)}%</small></button>`}).join('')}</div><p class="note">A torpedo now would come in from your ${SECN[cb.bear].toLowerCase()}; ${covCount('pdc',cb.bear)} ready PDC${covCount('pdc',cb.bear)==1?'':'s'}${extCount('pdc',cb.bear)?` and ${extCount('pdc',cb.bear)} that must slew round (−2)`:''} cover it. Layers: the first you pick, then free backups.${covCount('pdc',cb.bear)==0&&live('pdc').length?' <b class="warn">No PDC has a ready arc here. Your pilot and gunner can spin the ship to put one on it.</b>':''}</p>`:''}
  <h4>Engineering — ${nm(m.en)}</h4><div class="ops">${opt('eng','repair','Damage control','fix / patch')}${opt('eng','pw','Power weapons','+2 attack')}${opt('eng','ph','Power helm','+2 helm, defense')}${opt('eng','over','Overload','+2 all, may backfire')}</div>
@@ -745,6 +782,7 @@ if(DOM){document.addEventListener('input',e=>{const k=e.target.dataset&&e.target
  if(a=='fbsend'){(async()=>{UI.fb.sent='Sending…';render();try{if(!UI.db)throw new Error('db');await UI.db.collection('feedback').add(fbPayload());UI.fb.sent='Sent. Thank you!'}catch(e){UI.fb.copyText=fbText();UI.fb.sent='Could not send from here. Use Copy as text and send it directly.'}render()})();return}
  if(a=='helpx'){UI.showHelp=false;render();return}
  if(a=='logtoggle'){UI.logOpen=!UI.logOpen;render();return}
+ if(a=='slotopen'){UI.slot=UI.slot==v?null:v;render();return}
  if(a=='ap'||a=='go'||a=='round'||a=='leave'||a=='depart'||a=='new'||a=='fate')UI.scroll=a!='fate'&&a!='round'&&a!='ap';
  if(UI.running&&G.phase!='travel'){clearInterval(UI.timer);UI.running=0}
  act(a,v,w)});
