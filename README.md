@@ -60,11 +60,22 @@ Fights use **range bands** (Close, Medium, Long). Each weapon is good at differe
 
 Each round you give orders:
 
-- **Helm**: close in, open range, evade, or hold.
+- **Helm**: close in, open range, evade, or hold. Or use a **heading order** instead (face the enemy, bring your guns to bear, cover with your PDCs, turn away). The pilot rolls to turn the ship.
 - **Gunnery**: pick a weapon, a **fire level**, and a target (hull or a subsystem).
 - **Engineering**: damage control, power weapons, power helm, or overload.
 - **Command**: stance (aggressive or defensive), disengage, parley, or surrender.
 - **Torpedo defense** (when the enemy has torpedoes): choose your first line of defense.
+
+### Bearing and weapon arcs
+
+The enemy is not just at a range. It is also at a **bearing**: one of six sectors around your ship (bow, starboard bow, starboard quarter, stern, port quarter, port bow). The tactical scope shows your ship in the middle of the range rings, the enemy as a contact, and:
+
+- **Weapon arcs.** Each mount only covers some sectors. The Kestrel starts with a fixed railgun and forward torpedo tubes that cover the bow and both bow sectors, and a port PDC and a starboard PDC that cover three sectors each. A weapon can only fire if the enemy is inside the arc of a working mount. Green shading on the scope is the arc of the weapon you have selected.
+- **PDC coverage band.** The outer ring of the scope counts the working PDCs covering each sector. An ✕ is a gap.
+- **Turning.** Heading orders turn the ship so the enemy lands in a better sector. It costs your helm action that round. A good pilot turns farther.
+- **The enemy moves too.** It tries to slide to a sector where your guns are thin.
+- **Hits land on the side they come from.** Damage to your weapons knocks out specific mounts, and the log names them.
+- **Refits.** An aft PDC mount closes the stern gap. A railgun turret widens the railgun arc to five sectors at -1 to hit.
 
 ### Munitions
 
@@ -84,9 +95,10 @@ An incoming torpedo is stopped by a chain of defenses. Your choice sets which on
 - **Flak screen** (3 belts, stronger)
 - **Decoys** (1 decoy, 25 cr each)
 - **Jam / hack** (free, uses your systems officer)
+- **Spin to cover** (free, pilot and gunner together): when no working PDC covers the side a torpedo is coming from, the ship swings round so one does, and then it fires. It needs both pilot and gunner for the best chance, and a lone crew member does it badly. Long range gives you two tries, close range only one. The spin also changes your heading, so your guns may no longer bear.
 - **Hard turn** (free, your pilot dodges; costs you -1 attack)
 
-Knocked-out systems take their defenses away: no PDC means no PDC or flak, dead sensors mean no jam or decoys, and a dead drive means no hard turn.
+PDC fire only counts PDCs that cover the torpedo's sector; each covering PDC gets a shot. Knocked-out systems take their defenses away: no PDC means no PDC or flak, dead sensors mean no jam or decoys, and a dead drive means no hard turn.
 
 ## What we want to know
 
@@ -105,6 +117,7 @@ Use the **Feedback** button in the game. If it can't send, use the Copy as text 
 
 - **No saving.** Closing the page or pressing Restart loses the run.
 - **Placeholder balance.** Prices, pay, and difficulty are not tuned.
+- **Arcs are new.** Only your ship has weapon arcs. The enemy fires from wherever it sits, and the scope's bearing is the same for every enemy.
 - **No art or sound.** This is a systems test.
 - **One ship only.** No fleet, no boarding, and enemy strength does not yet scale with how dangerous the lane is.
 - **Test bots win about 80% of runs** because they play fairly simply. A thoughtful human should find it harder, and we want to hear if it is not.
