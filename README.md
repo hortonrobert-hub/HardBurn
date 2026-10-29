@@ -71,7 +71,8 @@ Each round you give orders:
 The enemy is not just at a range. It is also at a **bearing**: one of six sectors around your ship (bow, starboard bow, starboard quarter, stern, port quarter, port bow). The tactical scope shows your ship in the middle of the range rings, the enemy as a contact, and:
 
 - **Weapon arcs.** Each mount only covers some sectors. The Kestrel starts with a fixed railgun and forward torpedo tubes that cover the bow and both bow sectors, and a port PDC and a starboard PDC that cover three sectors each. A weapon can only fire if the enemy is inside the arc of a working mount. Green shading on the scope is the arc of the weapon you have selected.
-- **PDC coverage band.** The outer ring of the scope counts the working PDCs covering each sector. An ✕ is a gap.
+- **PDCs swivel.** A PDC is a turret and can turn all the way round, but each has a **ready arc** (three sectors, full strength) and one **blind sector** where the ship's own hull is in the way. Anywhere else it has to slew round and fires at -2.
+- **PDC coverage band.** The outer ring of the scope counts the working PDCs with a ready arc on each sector. A ~ means only a slow swing reaches it, and an ✕ is a blind spot.
 - **Turning.** Heading orders turn the ship so the enemy lands in a better sector. It costs your helm action that round. A good pilot turns farther.
 - **The enemy moves too.** It tries to slide to a sector where your guns are thin.
 - **Hits land on the side they come from.** Damage to your weapons knocks out specific mounts, and the log names them.
@@ -95,10 +96,10 @@ An incoming torpedo is stopped by a chain of defenses. Your choice sets which on
 - **Flak screen** (3 belts, stronger)
 - **Decoys** (1 decoy, 25 cr each)
 - **Jam / hack** (free, uses your systems officer)
-- **Spin to cover** (free, pilot and gunner together): when no working PDC covers the side a torpedo is coming from, the ship swings round so one does, and then it fires. It needs both pilot and gunner for the best chance, and a lone crew member does it badly. Long range gives you two tries, close range only one. The spin also changes your heading, so your guns may no longer bear.
+- **Spin to cover** (free, pilot and gunner together): when no PDC has a ready arc on the side a torpedo is coming from, the ship swings round so one does, and then it fires. It needs both pilot and gunner for the best chance, and a lone crew member does it badly. Long range gives you two tries, close range only one. The spin also changes your heading, so your guns may no longer bear.
 - **Hard turn** (free, your pilot dodges; costs you -1 attack)
 
-PDC fire only counts PDCs that cover the torpedo's sector; each covering PDC gets a shot. Knocked-out systems take their defenses away: no PDC means no PDC or flak, dead sensors mean no jam or decoys, and a dead drive means no hard turn.
+Each PDC that can reach the torpedo's sector gets a shot (ready ones at full strength, slewing ones at -2). Knocked-out systems take their defenses away: no PDC means no PDC or flak, dead sensors mean no jam or decoys, and a dead drive means no hard turn.
 
 ## What we want to know
 
